@@ -24,3 +24,16 @@ commit personal HPC paths, account names, credentials, or cluster-specific
 secrets.
 
 Current status: planned work only. No SLURM job scripts are included.
+
+Resource guidance:
+
+- Dorado basecalling is a GPU job.
+- DeepRM inference is a GPU job.
+- SingleMod neural-network prediction should request a GPU only if the current
+  implementation uses CUDA.
+- Samtools, Modkit, f5c eventalign, coordinate conversion, table formatting, and
+  comparison steps should be CPU jobs unless the program explicitly requires a
+  GPU.
+- Do not request GPUs for non-GPU tasks.
+- Do not substantially increase CPU, memory, or wall-time values without
+  evidence from existing scripts or completed runs.

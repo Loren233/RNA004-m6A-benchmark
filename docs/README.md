@@ -5,7 +5,11 @@ notes lives here.
 
 Start with:
 
-- `repository_structure.md` for where files belong.
-- Future method notes for site-table standardization.
-- Future method notes for coordinate-offset matching.
-- Future method notes for depth-stratified correlation analysis.
+- `pipeline_overview.md`
+- `references_and_coordinates.md`
+- `ground_truths.md`
+- `dorado.md`
+- `deeprm.md`
+- `m6anet.md`
+- `singlemod.md`
+- `source/pipeline.docx`

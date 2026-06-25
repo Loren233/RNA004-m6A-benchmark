@@ -1,0 +1,33 @@
+# HEK293T GLORI benchmark configuration template.
+# Planned work: fill only with verified local paths, references, and parameters.
+
+cell_line: HEK293T
+ground_truth_method: GLORI
+status: planned
+
+paths:
+  local_paths_file: configs/paths.sh
+  nanopore_metadata: metadata/nanopore_datasets.tsv
+  ground_truth_metadata: metadata/ground_truth_datasets.tsv
+  software_versions: metadata/software_versions.tsv
+
+pipeline:
+  basecalling: planned
+  alignment: planned
+  bam_quality_control: planned
+  deeprm: planned
+  m6anet: planned
+  dorado_modification_calling: planned
+  singlemod: planned
+  ground_truth_preparation: planned
+  site_table_standardization: planned
+  coordinate_offset_matching: planned
+  depth_stratified_correlation: planned
+  visualization: planned
+
+matching:
+  coordinate_system: planned
+  offset_rule: planned
+  reference_annotation: planned
+
+depth_bins: []
