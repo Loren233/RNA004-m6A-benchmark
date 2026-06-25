@@ -1,9 +1,6 @@
 # RNA004-m6A-benchmark
 
-Reproducible benchmarking framework for RNA004 nanopore direct RNA sequencing
-m6A detection. This repository is currently a clean project scaffold. Analysis
-scripts, SLURM jobs, software environments, and benchmark outputs are planned
-work and have not yet been implemented.
+Benchmarking nanopore direct RNA sequencing tools for m6A detection using RNA004 datasets.
 
 ## Project Overview
 
