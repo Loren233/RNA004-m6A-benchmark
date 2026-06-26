@@ -20,7 +20,7 @@ import pandas as pd
 
 
 DEFAULT_GROUPS = ["depth_gt40", "depth_31_40", "depth_21_30", "depth_11_20", "depth_1_10"]
-DEFAULT_GROUP_LABELS = ["depth > 40", "30 < depth <= 40", "20 < depth <= 30", "10 < depth <= 20", "1 <= depth <= 10"]
+DEFAULT_GROUP_LABELS = ["depth > 40", "30 < depth ≤ 40", "20 < depth ≤ 30", "10 < depth ≤ 20", "1 ≤ depth ≤ 10"]
 SUMMARY_COLUMNS = ["group", "n", "pearson_r2", "spearman_rho2"]
 
 
@@ -156,6 +156,10 @@ def density_values(x: np.ndarray, y: np.ndarray, bins: int) -> np.ndarray:
     return counts[x_bin, y_bin].astype(float)
 
 
+def stoichiometry_ticks() -> list[float]:
+    return [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+
+
 def output_paths(prefix: str) -> tuple[Path, Path]:
     return Path(prefix + ".pdf"), Path(prefix + ".png")
 
@@ -197,9 +201,10 @@ def plot(args: argparse.Namespace) -> tuple[Path, Path]:
         panels.append((x, y, density))
 
     row_count = len(groups)
-    fig, axes = plt.subplots(row_count, 1, figsize=(5.8, max(2.2 * row_count, 3.0)), squeeze=False)
+    fig, axes = plt.subplots(row_count, 1, figsize=(4.8, max(4.0 * row_count, 4.0)), squeeze=False)
     norm = LogNorm(vmin=1.0, vmax=global_max)
-    cmap = "viridis"
+    cmap = "magma"
+    ticks = stoichiometry_ticks()
 
     for index, (group, label) in enumerate(zip(groups, labels)):
         ax = axes[index, 0]
@@ -216,19 +221,19 @@ def plot(args: argparse.Namespace) -> tuple[Path, Path]:
             ha="left",
             va="top",
             fontsize=9,
-            bbox={"boxstyle": "round,pad=0.25", "facecolor": "white", "edgecolor": "0.75", "alpha": 0.9},
         )
         ax.set_title(f"{args.tool_name} | {label}", fontsize=11)
         ax.set_xlim(0.0, 1.0)
         ax.set_ylim(0.0, 1.0)
-        ax.set_xticks([0.0, 0.5, 1.0])
-        ax.set_yticks([0.0, 0.5, 1.0])
+        ax.set_aspect("equal", adjustable="box")
+        ax.set_xticks(ticks)
+        ax.set_yticks(ticks)
+        ax.tick_params(axis="x", labelbottom=False)
         ax.set_ylabel(f"{args.tool_name} stoichiometry")
         if index == row_count - 1:
             ax.set_xlabel(f"{args.truth_name} stoichiometry")
         else:
             ax.set_xlabel("")
-            ax.tick_params(labelbottom=False)
 
     scalar = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
     scalar.set_array([])
@@ -237,7 +242,7 @@ def plot(args: argparse.Namespace) -> tuple[Path, Path]:
     colorbar.locator = LogLocator(base=10)
     colorbar.formatter = LogFormatterMathtext(base=10)
     colorbar.update_ticks()
-    fig.subplots_adjust(left=0.14, right=0.84, top=0.96, bottom=0.08, hspace=0.12)
+    fig.subplots_adjust(left=0.18, right=0.82, top=0.97, bottom=0.05, hspace=0.36)
 
     atomic_save(fig, pdf_path, args.dpi)
     atomic_save(fig, png_path, args.dpi)
