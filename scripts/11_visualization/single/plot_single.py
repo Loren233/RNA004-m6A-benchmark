@@ -13,7 +13,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
+from matplotlib.colors import LinearSegmentedColormap, LogNorm
 from matplotlib.ticker import LogFormatterMathtext, LogLocator
 import numpy as np
 import pandas as pd
@@ -22,6 +22,17 @@ import pandas as pd
 DEFAULT_GROUPS = ["depth_gt40", "depth_31_40", "depth_21_30", "depth_11_20", "depth_1_10"]
 DEFAULT_GROUP_LABELS = ["depth > 40", "30 < depth ≤ 40", "20 < depth ≤ 30", "10 < depth ≤ 20", "1 ≤ depth ≤ 10"]
 SUMMARY_COLUMNS = ["group", "n", "pearson_r2", "spearman_rho2"]
+PAPER_DENSITY_CMAP = LinearSegmentedColormap.from_list(
+    "paper_density",
+    [
+        "#3b0f70",
+        "#8c2981",
+        "#de4968",
+        "#f98e52",
+        "#fee08b",
+    ],
+    N=256,
+)
 
 
 def log(message: str) -> None:
@@ -64,6 +75,10 @@ def resolve_group_labels(groups: list[str], labels: list[str] | None) -> list[st
     if len(labels) != len(groups):
         fail("--groups and --group-labels must have the same length")
     return labels
+
+
+def normalize_display_label(label: str) -> str:
+    return label.replace("<=", "≤").replace(">=", "≥")
 
 
 def validate_bins_and_dpi(bins: int, dpi: int) -> None:
@@ -181,7 +196,7 @@ def atomic_save(fig: plt.Figure, path: Path, dpi: int) -> None:
 
 def plot(args: argparse.Namespace) -> tuple[Path, Path]:
     groups = list(args.groups)
-    labels = resolve_group_labels(groups, args.group_labels)
+    labels = [normalize_display_label(label) for label in resolve_group_labels(groups, args.group_labels)]
     validate_bins_and_dpi(args.bins, args.dpi)
     pdf_path, png_path = output_paths(args.output_prefix)
     refuse_overwrite((pdf_path, png_path), args.force)
@@ -203,7 +218,7 @@ def plot(args: argparse.Namespace) -> tuple[Path, Path]:
     row_count = len(groups)
     fig, axes = plt.subplots(row_count, 1, figsize=(4.8, max(4.0 * row_count, 4.0)), squeeze=False)
     norm = LogNorm(vmin=1.0, vmax=global_max)
-    cmap = "magma"
+    cmap = PAPER_DENSITY_CMAP
     ticks = stoichiometry_ticks()
 
     for index, (group, label) in enumerate(zip(groups, labels)):
@@ -222,7 +237,7 @@ def plot(args: argparse.Namespace) -> tuple[Path, Path]:
             va="top",
             fontsize=9,
         )
-        ax.set_title(f"{args.tool_name} | {label}", fontsize=11)
+        ax.set_title(f"{args.tool_name} | {label}", fontsize=11, pad=4)
         ax.set_xlim(0.0, 1.0)
         ax.set_ylim(0.0, 1.0)
         ax.set_aspect("equal", adjustable="box")
@@ -242,7 +257,7 @@ def plot(args: argparse.Namespace) -> tuple[Path, Path]:
     colorbar.locator = LogLocator(base=10)
     colorbar.formatter = LogFormatterMathtext(base=10)
     colorbar.update_ticks()
-    fig.subplots_adjust(left=0.18, right=0.82, top=0.97, bottom=0.05, hspace=0.36)
+    fig.subplots_adjust(left=0.18, right=0.82, top=0.97, bottom=0.05, hspace=0.28)
 
     atomic_save(fig, pdf_path, args.dpi)
     atomic_save(fig, png_path, args.dpi)
