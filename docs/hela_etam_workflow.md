@@ -6,8 +6,8 @@ calls against eTAM-seq.
 Planned steps:
 
 1. Register verified HeLa nanopore samples in `metadata/nanopore_datasets.tsv`.
-2. Register verified eTAM-seq ground-truth tables in
-   `metadata/ground_truth_datasets.tsv`.
+2. Use the verified eTAM-seq ground-truth table in
+   `metadata/ground_truth_datasets/HeLa_eTAM_FTOm_FTOp_rep1_rep2_rep3_intersection_mean.tsv`.
 3. Configure placeholder-free local paths in an untracked `configs/paths.sh`.
 4. Run basecalling, alignment, BAM quality control, and m6A detection tools.
 5. Prepare eTAM-seq sites with
