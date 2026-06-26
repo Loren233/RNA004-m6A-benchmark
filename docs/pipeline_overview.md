@@ -25,7 +25,9 @@ Cell-line comparisons:
 3. Run basecalling/alignment or register existing compatible BAM/FASTQ files.
 4. Run tool-specific m6A detection workflows.
 5. Convert transcript-level outputs to genomic coordinates where needed.
-6. Standardize site-level tables.
+6. Standardize site-level tables. Dorado standardization streams the converted
+   genomic table through GNU sort and aggregates transcript-derived records by
+   genomic site.
 7. Match predictions to cell-line-specific ground truth.
 8. Stratify by depth and calculate correlations.
 9. Generate figures.
