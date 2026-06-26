@@ -20,6 +20,13 @@ THREADS="${THREADS:-${SLURM_CPUS_PER_TASK:-8}}"
     --min-qscore 0 \
     "$DORADO_MODEL" \
     "$POD5" \
-    | "$SAMTOOLS" sort -@ "$THREADS" -o "$OUTBAM" -
+    | "$SAMTOOLS" view \
+        -u \
+        -F 2304 \
+        - \
+    | "$SAMTOOLS" sort \
+        -@ "$THREADS" \
+        -o "$OUTBAM" \
+        -
 
 "$SAMTOOLS" index -@ "$THREADS" "$OUTBAM"
