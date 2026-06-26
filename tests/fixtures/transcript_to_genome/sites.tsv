@@ -1,0 +1,7 @@
+transcript_id	transcript_position_0based	depth	stoich	label
+TXPLUS.1	0	10	0.1	plus_first_base
+TXPLUS.1	10	11	0.2	plus_exon_junction
+TXMINUS.1	0	12	0.3	minus_first_base
+TXMINUS.1	10	13	0.4	minus_exon_junction
+TXPLUS.1	20	14	0.5	out_of_range
+TXMISSING.1	0	15	0.6	missing_transcript

@@ -25,3 +25,9 @@ The command template preserves these options from `pipeline.docx`:
 If `REFERENCE` is a transcript FASTA, downstream site tables may need
 transcript-to-genome conversion. If `REFERENCE` is a GRCh38 genome FASTA, do not
 convert again.
+
+When Dorado is aligned to the cleaned GENCODE transcript FASTA, the site-level
+table column named `chr` contains transcript IDs such as `ENST00000832841.1`.
+Use `scripts/dorado/dorado_04_convert_tx_to_genome.sh` to call the generic
+converter before genomic standardization. The wrapper maps `chr` to
+`transcript_id` and uses `start_0based` as the 0-based transcript coordinate.

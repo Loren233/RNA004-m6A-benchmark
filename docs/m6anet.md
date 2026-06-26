@@ -42,3 +42,9 @@ Inference uses:
 For HEK293T, this is the matched RNA004 pretrained model. For HeLa, it is a
 cross-cell-line generalization experiment and must not be described as a
 HeLa-specific model.
+
+After inference, `scripts/m6anet/m6anet_07_convert_tx_to_genome.sh` converts
+`data.site_proba.csv` transcript coordinates to genomic coordinates using the
+generic converter. The wrapper treats `transcript_position` as 0-based, maps
+`transcript_id` through GENCODE v49 exon annotations, preserves `kmer` and
+`probability_modified`, and writes a tab-separated genomic site table.
