@@ -1,41 +1,41 @@
 # Benchmarking
 
-The benchmarking scripts are standalone Python programs intended to run on an
-HPC server even when the server cannot access this repository directly. Copy the
-three scripts in this directory to the server if needed.
+The benchmarking scripts are standalone Python programs. They may be copied to a
+compute server and run independently of the repository checkout.
 
 Workflow:
 
 ```text
 standardized prediction table + genomic ground truth
   -> match_sites_by_offset.py
-  -> choose the globally supported offset
+  -> choose one globally supported offset
   -> stratify_by_depth.py
   -> calculate_correlations.py
 ```
 
-The formal Dorado versus GLORI benchmark uses offset 0 when it has the clearly
-largest overlap. Do not merge the -1, 0, and +1 matched tables, and do not
-choose offsets separately per site.
+Do not merge matched tables from different offsets, and do not choose a
+different offset independently for each site.
 
 ## Example 1: Match Offsets
 
-These paths are examples and are not hardcoded.
-
 ```bash
+PREDICTION=/path/to/prediction_standardized.tsv
+TRUTH=/path/to/ground_truth.tsv
+OUT_PREFIX=/path/to/results/tool_vs_truth
+
 python scripts/10_benchmarking/match_sites_by_offset.py \
-    --prediction /gpfs/work/bio/zhikefu24/surf/PRJEB80229/dorado/PRJEB80229_dorado_m6A.primary_standardized_genomic.tsv \
-    --truth /gpfs/work/bio/zhikefu24/deeprm/ground_truth/glori/HEK293T_GLORI_rep1_rep2_intersection_mean.tsv \
-    --out-prefix /gpfs/work/bio/zhikefu24/surf/PRJEB80229/dorado/PRJEB80229_dorado_vs_GLORI \
+    --prediction "$PREDICTION" \
+    --truth "$TRUTH" \
+    --out-prefix "$OUT_PREFIX" \
     --offsets -1 0 1 \
     --prediction-position-column pos_1based \
     --truth-position-column pos \
     --prediction-depth-column depth \
     --prediction-stoich-column stoich \
-    --truth-depth-column glori_depth_mean \
-    --truth-stoich-column glori_stoich_mean \
-    --prediction-source Dorado \
-    --truth-source GLORI
+    --truth-depth-column truth_depth \
+    --truth-stoich-column truth_stoich \
+    --prediction-source prediction_tool \
+    --truth-source ground_truth
 ```
 
 Offset convention:
@@ -44,29 +44,44 @@ Offset convention:
 prediction_pos = truth_pos + offset
 ```
 
-## Example 2: Stratify Offset Zero
+The truth column arguments must be adjusted to the actual ground-truth schema.
+
+## Example 2: Stratify the Selected Offset
 
 ```bash
+MATCHED=/path/to/results/tool_vs_truth_offset_0.tsv
+STRATIFIED=/path/to/results/tool_vs_truth_offset_0_stratified.tsv
+
 python scripts/10_benchmarking/stratify_by_depth.py \
-    --input /gpfs/work/bio/zhikefu24/surf/PRJEB80229/dorado/PRJEB80229_dorado_vs_GLORI_offset_0.tsv \
-    --output /gpfs/work/bio/zhikefu24/surf/PRJEB80229/dorado/PRJEB80229_dorado_vs_GLORI_offset_0_stratified.tsv \
+    --input "$MATCHED" \
+    --output "$STRATIFIED" \
     --depth-column prediction_depth \
     --bin-edges 10 20 30 40
 ```
 
-Default groups are `depth_1_10`, `depth_11_20`, `depth_21_30`,
-`depth_31_40`, and `depth_gt40`.
+Default groups:
+
+```text
+depth_1_10
+depth_11_20
+depth_21_30
+depth_31_40
+depth_gt40
+```
 
 ## Example 3: Calculate Correlations
 
 ```bash
+STRATIFIED=/path/to/results/tool_vs_truth_offset_0_stratified.tsv
+SUMMARY=/path/to/results/tool_vs_truth_correlation_summary.tsv
+
 python scripts/10_benchmarking/calculate_correlations.py \
-    --input /gpfs/work/bio/zhikefu24/surf/PRJEB80229/dorado/PRJEB80229_dorado_vs_GLORI_offset_0_stratified.tsv \
-    --output /gpfs/work/bio/zhikefu24/surf/PRJEB80229/dorado/PRJEB80229_dorado_vs_GLORI_correlation_summary.tsv \
+    --input "$STRATIFIED" \
+    --output "$SUMMARY" \
     --truth-column truth_stoich \
     --prediction-column prediction_stoich \
     --group-column depth_group
 ```
 
-Correlations use `x = truth_stoich` and `y = prediction_stoich`. Pearson
-`r2` and Spearman `rho2` are reported separately.
+Correlations use ground-truth stoichiometry as x and prediction stoichiometry
+as y. Pearson r-squared and Spearman rho-squared must remain separate metrics.

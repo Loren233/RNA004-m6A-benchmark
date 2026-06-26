@@ -10,10 +10,10 @@ HEK293/HEK293T nanopore predictions should be compared primarily with GLORI
 after both prediction and ground-truth tables are represented in compatible
 GRCh38 genomic coordinates.
 
-Current ground-truth input:
+Current ground-truth input pattern:
 
 ```text
-metadata/ground_truth_datasets/HEK293T_GLORI_rep1_rep2_intersection_mean.tsv
+metadata/ground_truth_datasets/ground_truth.tsv
 ```
 
 Processing order:
@@ -35,10 +35,10 @@ Primary benchmark: eTAM-seq.
 HeLa nanopore predictions should be compared primarily with eTAM-seq. Do not
 label GLORI as the HeLa ground truth.
 
-Current ground-truth input:
+Current ground-truth input pattern:
 
 ```text
-metadata/ground_truth_datasets/HeLa_eTAM_FTOm_FTOp_rep1_rep2_rep3_intersection_mean.tsv
+metadata/ground_truth_datasets/ground_truth.tsv
 ```
 
 Processing order:

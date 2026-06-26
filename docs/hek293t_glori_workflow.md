@@ -6,8 +6,8 @@ m6A calls against GLORI.
 Planned steps:
 
 1. Register verified HEK293T nanopore samples in `metadata/nanopore_datasets.tsv`.
-2. Use the verified GLORI ground-truth table in
-   `metadata/ground_truth_datasets/HEK293T_GLORI_rep1_rep2_intersection_mean.tsv`.
+2. Use the verified GLORI ground-truth table, represented generically as
+   `metadata/ground_truth_datasets/ground_truth.tsv`.
 3. Configure placeholder-free local paths in an untracked `configs/paths.sh`.
 4. Run basecalling, alignment, BAM quality control, and m6A detection tools.
 5. Prepare GLORI sites with `scripts/08_ground_truth/glori/prepare_glori_sites.py`.

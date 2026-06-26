@@ -175,8 +175,7 @@ Unresolved items are marked `TO VERIFY` rather than guessed.
 - Intermediate site-level files:
   - `GSM6432590_HEK293T_GLORI_plus_rep1_site_level.tsv`
   - `GSM6432591_HEK293T_GLORI_plus_rep2_site_level.tsv`
-- Final benchmark file:
-  `HEK293T_GLORI_rep1_rep2_intersection_mean.tsv`
+- Final benchmark table: local replicate-intersection ground-truth table.
 - Final benchmark file properties:
   - Total lines: 176650
   - Data rows: 176649

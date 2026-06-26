@@ -51,13 +51,17 @@ The standardizer aggregates transcript-derived records by
 `dorado_m6A_count` and `dorado_depth`, then calculates
 `stoich = modified_count / depth`. It does not average `dorado_stoich`.
 
-Real usage example:
+Usage example:
 
 ```bash
+INPUT=/path/to/dorado_sitelevel_genomic.tsv
+OUTPUT=/path/to/prediction_standardized.tsv
+TMPDIR=/path/to/tmp_standardize
+
 python scripts/09_standardization/standardize_site_tables.py dorado \
-    --input /gpfs/work/bio/zhikefu24/surf/PRJEB80229/dorado/PRJEB80229_dorado_m6A.primary_sitelevel_genomic.tsv \
-    --output /gpfs/work/bio/zhikefu24/surf/PRJEB80229/dorado/PRJEB80229_dorado_m6A.primary_standardized_genomic.tsv \
-    --tmp-dir /gpfs/work/bio/zhikefu24/surf/PRJEB80229/dorado/tmp_standardize \
+    --input "$INPUT" \
+    --output "$OUTPUT" \
+    --tmp-dir "$TMPDIR" \
     --sort-threads 4 \
     --sort-memory 4G
 ```
