@@ -20,6 +20,9 @@ HEK293T ground truth.
 
 ### Dorado
 
+Citation: Dorado v0.7.3+6e6c45c and Modkit v0.6.1 should be cited via the
+official Oxford Nanopore software repositories; see `docs/citations.md`.
+
 ```text
 POD5
   -> Dorado basecaller with m6A modified-base calling and alignment
@@ -41,6 +44,9 @@ a transcript FASTA or a GRCh38 genome FASTA.
 
 ### DeepRM
 
+Citation: DeepRM v1.0.9 is used with `deeprm_weights.pt`; the original DeepRM
+m6A method publication remains `TO VERIFY` in `docs/citations.md`.
+
 ```text
 POD5 + compatible aligned BAM
   -> deeprm call prep
@@ -58,6 +64,9 @@ The DeepRM model path should be configured with `DEEPRM_MODEL_FILE`. Do not
 commit personal installation paths.
 
 ### m6Anet
+
+Citation: m6Anet v2.1.0 should cite Hendra et al., Nature Methods 2022; this
+workflow uses the `HEK293T_RNA004` pretrained model.
 
 ```text
 POD5
@@ -84,6 +93,9 @@ model. For HeLa, the same model may be run only as a cross-cell-line
 generalization experiment; it is not a HeLa-specific m6Anet model.
 
 ### SingleMod
+
+Citation: SingleMod should cite Xie et al., Nature Communications 2025 and the
+official `xieyy46/SingleMod-v1` repository; see `docs/citations.md`.
 
 ```text
 POD5
@@ -115,6 +127,10 @@ BAM and GRCh38 FASTA. Do not add a GTF transcript-to-genome conversion step for
 that route. Site-level stoichiometry is calculated as `m6A_count / Total`.
 
 ## Reference and Coordinate Conventions
+
+Citation: current reference resources are GENCODE v49 / Ensembl 115 on GRCh38;
+cite the GENCODE release page and GENCODE project publication listed in
+`docs/citations.md`.
 
 See `docs/references_and_coordinates.md`. In short:
 
@@ -170,6 +186,10 @@ the preferred location for workflow templates derived from `pipeline.docx`.
 
 ### HEK293T + GLORI
 
+Citation: the current HEK293T ground truth is derived from GLORI samples
+GSM6432590 and GSM6432591 in GSE210563; cite the GLORI method paper and GEO
+records listed in `docs/citations.md`.
+
 1. Configure local paths from `configs/example.env` and
    `configs/hek293t.example.env`.
 2. Run Dorado basecalling/alignment or provide compatible existing BAM/FASTQ
@@ -196,6 +216,14 @@ the preferred location for workflow templates derived from `pipeline.docx`.
 Expected tools include Dorado, Samtools, Modkit, f5c, blue-crab, DeepRM,
 m6Anet, SingleMod, bedtools, Python, and shell utilities. Verified versions
 should be recorded in `metadata/software_versions.tsv`; do not invent versions.
+
+## Citations
+
+Users should cite the original software and method publications for DeepRM,
+m6Anet, Dorado/Modkit, and SingleMod, and cite GLORI for the current HEK293T
+ground truth. The HeLa eTAM benchmark remains a future extension with citation
+details marked `TO VERIFY`. See [docs/citations.md](docs/citations.md) and
+[CITATION.cff](CITATION.cff) for verified citations and unresolved items.
 
 ## Data Policy
 
