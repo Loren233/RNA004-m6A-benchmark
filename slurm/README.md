@@ -4,19 +4,19 @@ Future SLURM job templates should be placed here.
 
 Recommended naming pattern:
 
-- `01_dorado_basecalling.sbatch`
-- `02_minimap2_alignment.sbatch`
-- `03_bam_qc.sbatch`
-- `04_deeprm.sbatch`
-- `05_m6anet.sbatch`
-- `06_dorado_mod_calling.sbatch`
-- `07_singlemod.sbatch`
-- `08_prepare_glori_hek293t.sbatch`
-- `09_prepare_etamseq_hela.sbatch`
-- `10_standardize_sites.sbatch`
-- `11_match_coordinates.sbatch`
-- `12_depth_correlation.sbatch`
-- `13_visualization.sbatch`
+- `01_dorado_basecalling.sh`
+- `02_minimap2_alignment.sh`
+- `03_bam_qc.sh`
+- `04_deeprm.sh`
+- `05_m6anet.sh`
+- `06_dorado_mod_calling.sh`
+- `07_singlemod.sh`
+- `08_prepare_glori_hek293t.sh`
+- `09_prepare_etamseq_hela.sh`
+- `10_standardize_sites.sh`
+- `11_match_coordinates.sh`
+- `12_depth_correlation.sh`
+- `13_visualization.sh`
 
 Committed SLURM templates must use placeholders or environment variables for
 project paths, data paths, partitions, accounts, and scratch directories. Do not
