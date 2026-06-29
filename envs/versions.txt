@@ -1,0 +1,17 @@
+Python:
+Python 3.10.20
+
+Samtools:
+samtools 1.16.1
+
+DeepRM executable:
+/gpfs/work/bio/zhikefu24/deeprm/envs/deeprm/bin/deeprm
+
+Dorado:
+0.7.3
+
+Dorado RNA004 model:
+rna004_130bps_sup@v5.0.0
+
+Modkit:
+v0.6.1
