@@ -1,0 +1,25 @@
+name: rna004_m6a_benchmark
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+
+dependencies:
+  - python=3.10
+  - pip
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - scikit-learn
+  - seaborn
+  - pyyaml
+  - tqdm
+  - pysam
+  - samtools
+  - minimap2
+  - bedtools
+  - htslib
+  - pip:
+      - pod5
+      - ont-fast5-api

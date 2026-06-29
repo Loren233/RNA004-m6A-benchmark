@@ -1,0 +1,31 @@
+name: dorado_env
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+
+dependencies:
+  # Core language for downstream table processing
+  - python=3.10
+  - pip
+
+  # Basic Python analysis packages
+  - numpy
+  - pandas
+  - scipy
+  - pyyaml
+  - tqdm
+
+  # Alignment and BAM/BED processing
+  - minimap2
+  - samtools
+  - htslib
+  - bedtools
+
+  # Useful command-line utilities
+  - pigz
+  - seqkit
+
+  # Python packages
+  - pip:
+      - pyarrow
