@@ -1,4 +1,4 @@
-name: /gpfs/work/bio/zhikefu24/deeprm/envs/deeprm
+name: deeprm
 channels:
   - defaults
   - conda-forge
