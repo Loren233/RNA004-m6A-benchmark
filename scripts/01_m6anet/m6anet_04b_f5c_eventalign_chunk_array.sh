@@ -5,16 +5,18 @@ source "$(dirname "$0")/../utilities/common.sh"
 
 require_var SAMTOOLS
 require_var F5C
+require_var M6ANET
 require_var BLOW5
-require_var KMER_MODEL
-require_var BAM
 require_var FASTQ
+require_var BAM
 require_var TRANSCRIPT_FASTA
+require_var KMER_MODEL
 require_var WORK
 
 THREADS="${THREADS:-5}"
 N_CHUNKS="${N_CHUNKS:-24}"
-CLEAN_CHUNK_BAM="${CLEAN_CHUNK_BAM:-1}"
+M6ANET_DATAPREP_PROCESSES="${M6ANET_DATAPREP_PROCESSES:-$THREADS}"
+CLEAN_EVENTALIGN_AFTER_DATAPREP="${CLEAN_EVENTALIGN_AFTER_DATAPREP:-1}"
 
 if [[ -n "${SLURM_ARRAY_TASK_ID:-}" ]]; then
     CHUNK_N="${SLURM_ARRAY_TASK_ID}"
@@ -32,27 +34,45 @@ CHUNK_ID=$(printf "chunk_%02d" "$CHUNK_N")
 REF_CHUNK="${WORK}/ref_chunks/${CHUNK_ID}.bed"
 SPLIT_DIR="${WORK}/split_bam/${CHUNK_ID}"
 EVENT_DIR="${WORK}/eventalign/${CHUNK_ID}"
+DATAPREP_DIR="${WORK}/dataprep/${CHUNK_ID}"
 STATUS_DIR="${WORK}/status"
 
-mkdir -p "$SPLIT_DIR" "$EVENT_DIR" "$STATUS_DIR" "$WORK/logs"
+mkdir -p "$SPLIT_DIR" "$EVENT_DIR" "$DATAPREP_DIR" "$STATUS_DIR" "$WORK/logs"
 
 CHUNK_BAM="${SPLIT_DIR}/${CHUNK_ID}.bam"
-EVENTALIGN="${EVENT_DIR}/${CHUNK_ID}.eventalign.tsv"
-SUMMARY="${EVENT_DIR}/${CHUNK_ID}.eventalign.summary.tsv"
+
+EVENTALIGN_FINAL="${EVENT_DIR}/${CHUNK_ID}.eventalign.tsv"
+SUMMARY_FINAL="${EVENT_DIR}/${CHUNK_ID}.eventalign.summary.tsv"
+
+EVENTALIGN_TMP="${EVENTALIGN_FINAL}.tmp"
+SUMMARY_TMP="${SUMMARY_FINAL}.tmp"
 
 echo "========================================"
-echo "m6Anet f5c eventalign chunk array"
+echo "m6Anet eventalign + dataprep chunk"
 echo "CHUNK_ID=$CHUNK_ID"
 echo "THREADS=$THREADS"
 echo "WORK=$WORK"
 echo "REF_CHUNK=$REF_CHUNK"
 echo "CHUNK_BAM=$CHUNK_BAM"
-echo "EVENTALIGN=$EVENTALIGN"
-echo "SUMMARY=$SUMMARY"
+echo "EVENTALIGN_FINAL=$EVENTALIGN_FINAL"
+echo "SUMMARY_FINAL=$SUMMARY_FINAL"
+echo "DATAPREP_DIR=$DATAPREP_DIR"
 echo "Start: $(date)"
 echo "========================================"
 
-for f in "$BLOW5" "${BLOW5}.idx" "$FASTQ" "$BAM" "$TRANSCRIPT_FASTA" "$KMER_MODEL" "$REF_CHUNK"; do
+[[ -x "$SAMTOOLS" ]] || { echo "ERROR: samtools not executable: $SAMTOOLS" >&2; exit 1; }
+[[ -x "$F5C" ]] || { echo "ERROR: f5c not executable: $F5C" >&2; exit 1; }
+[[ -x "$M6ANET" ]] || { echo "ERROR: m6anet not executable: $M6ANET" >&2; exit 1; }
+
+for f in \
+    "$REF_CHUNK" \
+    "$BLOW5" \
+    "${BLOW5}.idx" \
+    "$FASTQ" \
+    "$BAM" \
+    "$TRANSCRIPT_FASTA" \
+    "$KMER_MODEL"
+do
     [[ -s "$f" ]] || { echo "ERROR: missing or empty input: $f" >&2; exit 1; }
 done
 
@@ -61,20 +81,27 @@ if [[ ! -s "${BAM}.bai" && ! -s "${BAM%.bam}.bai" ]]; then
     exit 1
 fi
 
-if [[ -s "$EVENTALIGN" && -s "$SUMMARY" ]]; then
-    echo "[SKIP] Existing eventalign and summary found for $CHUNK_ID"
-    touch "$STATUS_DIR/${CHUNK_ID}.eventalign.ok"
+if [[ -s "$STATUS_DIR/${CHUNK_ID}.dataprep.ok" ]] \
+    && [[ -d "$DATAPREP_DIR" ]] \
+    && find "$DATAPREP_DIR" -type f -size +0c | grep -q .
+then
+    echo "[SKIP] Existing successful dataprep output found for $CHUNK_ID"
     exit 0
 fi
 
-echo "[1/3] Create chunk BAM from transcript BED..."
+cleanup_chunk_bam() {
+    rm -rf "$SPLIT_DIR"
+}
+trap cleanup_chunk_bam EXIT
 
-rm -f "${CHUNK_BAM}.tmp" "$CHUNK_BAM" "${CHUNK_BAM}.bai"
+echo "[1/4] Create temporary chunk BAM..."
+
+rm -rf "$SPLIT_DIR"
+mkdir -p "$SPLIT_DIR"
 
 "$SAMTOOLS" view -@ "$THREADS" -bh -L "$REF_CHUNK" "$BAM" \
-    | "$SAMTOOLS" sort -@ "$THREADS" -o "${CHUNK_BAM}.tmp"
+    | "$SAMTOOLS" sort -@ "$THREADS" -o "$CHUNK_BAM"
 
-mv "${CHUNK_BAM}.tmp" "$CHUNK_BAM"
 "$SAMTOOLS" index -@ "$THREADS" "$CHUNK_BAM"
 
 N_BAM=$("$SAMTOOLS" view -c "$CHUNK_BAM")
@@ -83,39 +110,67 @@ echo "BAM records for $CHUNK_ID: $N_BAM"
 if [[ "$N_BAM" -eq 0 ]]; then
     echo "No BAM records for $CHUNK_ID. Mark as empty."
     touch "$STATUS_DIR/${CHUNK_ID}.empty.ok"
-    rm -f "$CHUNK_BAM" "${CHUNK_BAM}.bai"
-    rmdir "$SPLIT_DIR" 2>/dev/null || true
     exit 0
 fi
 
-echo "[2/3] f5c eventalign for $CHUNK_ID..."
+echo "[2/4] f5c eventalign..."
 
-rm -f "${EVENTALIGN}.tmp" "${SUMMARY}.tmp"
+rm -f "$EVENTALIGN_TMP" "$SUMMARY_TMP"
 
-export BAM="$CHUNK_BAM"
-export EVENTALIGN="${EVENTALIGN}.tmp"
-export SUMMARY="${SUMMARY}.tmp"
-export THREADS="$THREADS"
+"$F5C" eventalign \
+    --rna \
+    --slow5 "$BLOW5" \
+    --kmer-model "$KMER_MODEL" \
+    -b "$CHUNK_BAM" \
+    -r "$FASTQ" \
+    -g "$TRANSCRIPT_FASTA" \
+    -o "$EVENTALIGN_TMP" \
+    --summary "$SUMMARY_TMP" \
+    --scale-events \
+    --signal-index \
+    -t "$THREADS"
 
-bash "$(dirname "$0")/m6anet_04_f5c_eventalign.sh"
-
-[[ -s "${EVENTALIGN}.tmp" ]] || {
+[[ -s "$EVENTALIGN_TMP" ]] || {
     echo "ERROR: eventalign output is empty for $CHUNK_ID" >&2
     exit 1
 }
 
-mv "${EVENTALIGN}.tmp" "$EVENTALIGN"
-mv "${SUMMARY}.tmp" "$SUMMARY"
+mv "$EVENTALIGN_TMP" "$EVENTALIGN_FINAL"
+mv "$SUMMARY_TMP" "$SUMMARY_FINAL"
 
-echo "[3/3] Clean temporary chunk BAM..."
+echo "[3/4] Remove temporary chunk BAM..."
 
-if [[ "$CLEAN_CHUNK_BAM" == "1" ]]; then
-    rm -f "$CHUNK_BAM" "${CHUNK_BAM}.bai" "${CHUNK_BAM}.csi"
-    rmdir "$SPLIT_DIR" 2>/dev/null || true
+rm -rf "$SPLIT_DIR"
+trap - EXIT
+
+echo "[4/4] m6anet dataprep..."
+
+rm -rf "${DATAPREP_DIR}.tmp"
+mkdir -p "${DATAPREP_DIR}.tmp"
+
+"$M6ANET" dataprep \
+    --eventalign "$EVENTALIGN_FINAL" \
+    --out_dir "${DATAPREP_DIR}.tmp" \
+    --n_processes "$M6ANET_DATAPREP_PROCESSES"
+
+if ! find "${DATAPREP_DIR}.tmp" -type f -size +0c | grep -q .; then
+    echo "ERROR: dataprep output appears empty for $CHUNK_ID" >&2
+    exit 1
 fi
 
-touch "$STATUS_DIR/${CHUNK_ID}.eventalign.ok"
+rm -rf "$DATAPREP_DIR"
+mv "${DATAPREP_DIR}.tmp" "$DATAPREP_DIR"
+
+if [[ "$CLEAN_EVENTALIGN_AFTER_DATAPREP" == "1" ]]; then
+    echo "[CLEANUP] dataprep succeeded, removing large eventalign TSV..."
+    rm -f "$EVENTALIGN_FINAL"
+else
+    echo "[KEEP] CLEAN_EVENTALIGN_AFTER_DATAPREP=$CLEAN_EVENTALIGN_AFTER_DATAPREP, keeping eventalign TSV."
+fi
+
+touch "$STATUS_DIR/${CHUNK_ID}.dataprep.ok"
 
 echo "Finished $CHUNK_ID: $(date)"
-echo "Output:"
-ls -lh "$EVENTALIGN" "$SUMMARY"
+echo "Kept files:"
+du -sh "$DATAPREP_DIR" "$EVENT_DIR" 2>/dev/null || true
+ls -lh "$EVENT_DIR" || true
