@@ -1,87 +1,94 @@
-# Benchmarking
+# 04_benchmarking
 
-The benchmarking scripts are standalone Python programs. They may be copied to a
-compute server and run independently of the repository checkout.
+This folder contains scripts for benchmarking standardized RNA modification prediction results against ground truth datasets such as GLORI or eTAM.
 
-Workflow:
+The input files should already be standardized into genomic site-level coordinates before using these scripts.
 
-```text
-standardized prediction table + genomic ground truth
-  -> match_sites_by_offset.py
-  -> choose one globally supported offset
-  -> stratify_by_depth.py
-  -> calculate_correlations.py
-```
+The recommended order is:
 
-Do not merge matched tables from different offsets, and do not choose a
-different offset independently for each site.
+1. `01_match_sites_by_offset.py`
+2. `02_calculate_correlations.py`
+3. `03_stratify_by_depth.py`
 
-## Example 1: Match Offsets
+## Required input format
 
-```bash
-PREDICTION=/path/to/prediction_standardized.tsv
-TRUTH=/path/to/ground_truth.tsv
-OUT_PREFIX=/path/to/results/tool_vs_truth
+Prediction files should use genomic coordinates and include columns such as:
 
-python scripts/10_benchmarking/match_sites_by_offset.py \
-    --prediction "$PREDICTION" \
-    --truth "$TRUTH" \
-    --out-prefix "$OUT_PREFIX" \
-    --offsets -1 0 1 \
-    --prediction-position-column pos_1based \
-    --truth-position-column pos \
-    --prediction-depth-column depth \
-    --prediction-stoich-column stoich \
-    --truth-depth-column truth_depth \
-    --truth-stoich-column truth_stoich \
-    --prediction-source prediction_tool \
-    --truth-source ground_truth
-```
+- `chr`
+- `pos_1based`
+- `strand`
+- `stoich`
+- `depth`
+- `modified_count`
+- `motif`
 
-Offset convention:
+Ground truth files should also use genomic coordinates.
 
-```text
-prediction_pos = truth_pos + offset
-```
+Do not use transcript-level coordinates directly for benchmarking against GLORI or eTAM. If the prediction file contains transcript IDs such as `ENST00000000233.10`, first run the scripts in `03_standardization`.
 
-The truth column arguments must be adjusted to the actual ground-truth schema.
+## 01_match_sites_by_offset.py
 
-## Example 2: Stratify the Selected Offset
+This script matches prediction sites to ground truth sites by genomic position.
 
-```bash
-MATCHED=/path/to/results/tool_vs_truth_offset_0.tsv
-STRATIFIED=/path/to/results/tool_vs_truth_offset_0_stratified.tsv
+It is used to find overlapping sites between a prediction table and a ground truth table.
 
-python scripts/10_benchmarking/stratify_by_depth.py \
-    --input "$MATCHED" \
-    --output "$STRATIFIED" \
-    --depth-column prediction_depth \
-    --bin-edges 10 20 30 40
-```
+This step can also test small coordinate offsets, such as:
 
-Default groups:
+- direct match
+- prediction position plus 1
+- prediction position minus 1
 
-```text
-depth_1_10
-depth_11_20
-depth_21_30
-depth_31_40
-depth_gt40
-```
+This is useful because different tools or references may report the modified base position with a one-base shift.
 
-## Example 3: Calculate Correlations
+The output should be a joined table containing both prediction values and ground truth values for overlapping sites.
 
-```bash
-STRATIFIED=/path/to/results/tool_vs_truth_offset_0_stratified.tsv
-SUMMARY=/path/to/results/tool_vs_truth_correlation_summary.tsv
+## 02_calculate_correlations.py
 
-python scripts/10_benchmarking/calculate_correlations.py \
-    --input "$STRATIFIED" \
-    --output "$SUMMARY" \
-    --truth-column truth_stoich \
-    --prediction-column prediction_stoich \
-    --group-column depth_group
-```
+This script calculates overall correlation between predicted modification stoichiometry and ground truth stoichiometry.
 
-Correlations use ground-truth stoichiometry as x and prediction stoichiometry
-as y. Pearson r-squared and Spearman rho-squared must remain separate metrics.
+Typical metrics include:
+
+- number of matched sites
+- Pearson correlation
+- Pearson R squared
+- Spearman correlation
+- Spearman rho squared
+
+This script should be run after site matching.
+
+## 03_stratify_by_depth.py
+
+This script calculates benchmarking statistics within sequencing-depth bins.
+
+This is useful because low-depth sites usually have noisier stoichiometry estimates.
+
+Example depth bins include:
+
+- `depth > 40`
+- `30 < depth <= 40`
+- `20 < depth <= 30`
+- `10 < depth <= 20`
+- `5 < depth <= 10`
+
+This step helps evaluate whether a tool performs better at higher-confidence, higher-depth sites.
+
+## Recommended workflow
+
+For each tool:
+
+standardized genomic prediction  
+→ `01_match_sites_by_offset.py`  
+→ `02_calculate_correlations.py`  
+→ `03_stratify_by_depth.py`  
+→ `05_visualization`
+
+## Notes
+
+Benchmarking should be performed only after the prediction files and ground truth files are in compatible genomic coordinate systems.
+
+If a prediction file was generated from transcript-level coordinates, first run:
+
+1. `03_standardization/02_convert_transcript_to_genome.py`
+2. `03_standardization/03_collapse_genomic_sites.py`, if duplicated genomic sites are present
+
+The collapsed genomic result should be preferred for benchmarking when multiple transcript isoforms map to the same genomic site.
