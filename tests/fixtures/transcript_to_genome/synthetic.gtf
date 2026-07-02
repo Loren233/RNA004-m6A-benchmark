@@ -1,4 +1,0 @@
-chr1	test	exon	100	109	.	+	.	gene_id "GENEPLUS"; transcript_id "TXPLUS.1"; exon_number "1";
-chr1	test	exon	200	209	.	+	.	gene_id "GENEPLUS"; transcript_id "TXPLUS.1"; exon_number "2";
-chr2	test	exon	100	109	.	-	.	gene_id "GENEMINUS"; transcript_id "TXMINUS.1"; exon_number "2";
-chr2	test	exon	200	209	.	-	.	gene_id "GENEMINUS"; transcript_id "TXMINUS.1"; exon_number "1";

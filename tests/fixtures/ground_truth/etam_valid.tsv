@@ -1,3 +1,0 @@
-chr	pos_1based	strand	etam_depth_rep1	etam_stoich_rep1	etam_depth_rep2	etam_stoich_rep2	etam_depth_rep3	etam_stoich_rep3	etam_ctrl_depth_rep1	etam_ctrl_depth_rep2	etam_ctrl_depth_rep3	etam_depth_mean	etam_ctrl_depth_mean	etam_stoich_mean	etam_percent_mean	etam_FDR_rep1	etam_FDR_rep2	etam_FDR_rep3	etam_FDR_max	etam_accessibility_mean	motif	motif_type	source
-chr1	100	+	10	0.1	12	0.2	14	0.3	5	6	7	12	6	0.2	20	0.01	0.02	0.03	0.03	90	GGACC	DRACH	eTAM_FTOm_vs_FTOp
-chr2	200	-	20	0.2	22	0.3	24	0.4	8	9	10	22	9	0.3	30	0.04	0.05	0.06	0.06	80	AAACA	non-DRACH	eTAM_FTOm_vs_FTOp

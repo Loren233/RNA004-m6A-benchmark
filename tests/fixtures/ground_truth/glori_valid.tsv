@@ -1,3 +1,0 @@
-chr	pos	strand	glori_depth_rep1	glori_stoich_rep1	glori_depth_rep2	glori_stoich_rep2	glori_depth_mean	glori_stoich_mean
-chr1	100	+	10	0.1	12	0.2	11	0.15
-chr1	200	-	20	0.3	22	0.4	21	0.35
