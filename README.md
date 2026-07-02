@@ -20,8 +20,8 @@ HEK293T ground truth.
 
 ### Dorado
 
-Citation: Dorado v0.7.3+6e6c45c and Modkit v0.6.1 should be cited via the
-official Oxford Nanopore software repositories; see `docs/citations.md`.
+Citation: Oxford Nanopore Technologies. Dorado: Oxford Nanopore's basecaller. GitHub/software documentation. https://github.com/nanoporetech/dorado
+Citation: Oxford Nanopore Technologies. Modkit: a bioinformatics tool for working with modified bases from Oxford Nanopore, including conversion of modBAM to bedMethyl. GitHub/software documentation. https://github.com/nanoporetech/modkit
 
 ```text
 POD5
@@ -44,8 +44,7 @@ a transcript FASTA or a GRCh38 genome FASTA.
 
 ### DeepRM
 
-Citation: DeepRM v1.0.9 is used with `deeprm_weights.pt`; the original DeepRM
-m6A method publication remains `TO VERIFY` in `docs/citations.md`.
+Citation: Kang, G. et al. Comprehensive discovery of m6A sites in the human transcriptome at single-molecule resolution. Nature Communications 17, 664 (2026). https://doi.org/10.1038/s41467-025-67417-w
 
 ```text
 POD5 + compatible aligned BAM
@@ -65,8 +64,7 @@ commit personal installation paths.
 
 ### m6Anet
 
-Citation: m6Anet v2.1.0 should cite Hendra et al., Nature Methods 2022; this
-workflow uses the `HEK293T_RNA004` pretrained model.
+Citation: Hendra, C. et al. Detection of m6A from direct RNA sequencing using a multiple instance learning framework. Nature Methods 19, 1590–1598 (2022). https://doi.org/10.1038/s41592-022-01666-1
 
 ```text
 POD5
@@ -94,8 +92,7 @@ generalization experiment; it is not a HeLa-specific m6Anet model.
 
 ### SingleMod
 
-Citation: SingleMod should cite Xie et al., Nature Communications 2025 and the
-official `xieyy46/SingleMod-v1` repository; see `docs/citations.md`.
+Citation: Xie, Y.-Y. et al. Single-molecule direct RNA sequencing reveals the shaping of epitranscriptome across multiple species. Nature Communications 16, 5119 (2025). https://doi.org/10.1038/s41467-025-60447-4
 
 ```text
 POD5
