@@ -21,6 +21,7 @@ HEK293T ground truth.
 ### Dorado
 
 Citation: Oxford Nanopore Technologies. Dorado: Oxford Nanopore's basecaller. GitHub/software documentation. https://github.com/nanoporetech/dorado
+
 Citation: Oxford Nanopore Technologies. Modkit: a bioinformatics tool for working with modified bases from Oxford Nanopore, including conversion of modBAM to bedMethyl. GitHub/software documentation. https://github.com/nanoporetech/modkit
 
 ```text
@@ -125,9 +126,9 @@ that route. Site-level stoichiometry is calculated as `m6A_count / Total`.
 
 ## Reference and Coordinate Conventions
 
-Citation: current reference resources are GENCODE v49 / Ensembl 115 on GRCh38;
-cite the GENCODE release page and GENCODE project publication listed in
-`docs/citations.md`.
+Citation: GENCODE Consortium. GENCODE Human Release 49 (GRCh38.p14; corresponding to Ensembl 115). https://www.gencodegenes.org/human/release_49.html
+
+Citation: Frankish, A. et al. GENCODE: reference annotation for the human and mouse genomes in 2023. Nucleic Acids Research 51(D1), D942–D949 (2023). https://doi.org/10.1093/nar/gkac1071
 
 See `docs/references_and_coordinates.md`. In short:
 
@@ -213,14 +214,6 @@ records listed in `docs/citations.md`.
 Expected tools include Dorado, Samtools, Modkit, f5c, blue-crab, DeepRM,
 m6Anet, SingleMod, bedtools, Python, and shell utilities. Verified versions
 should be recorded in `metadata/software_versions.tsv`; do not invent versions.
-
-## Citations
-
-Users should cite the original software and method publications for DeepRM,
-m6Anet, Dorado/Modkit, and SingleMod, and cite GLORI for the current HEK293T
-ground truth. The HeLa eTAM benchmark remains a future extension with citation
-details marked `TO VERIFY`. See [docs/citations.md](docs/citations.md) and
-[CITATION.cff](CITATION.cff) for verified citations and unresolved items.
 
 ## Data Policy
 
