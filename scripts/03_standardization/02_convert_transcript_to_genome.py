@@ -1,26 +1,68 @@
 #!/usr/bin/env python3
-"""Convert transcript-coordinate site tables to genomic coordinates."""
+"""
+Convert transcript-coordinate site tables to genomic coordinates.
+
+This script only performs coordinate conversion.
+
+It does not standardize tool-specific columns. Tool-specific column standardization
+should be handled before this step by:
+
+    01_standardize_site_tables.py
+
+Expected workflow:
+
+    tool-specific output
+        -> 01_standardize_site_tables.py
+        -> 02_convert_transcript_to_genome.py
+        -> 03_collapse_genomic_sites.py
+
+Input requirement:
+    The input table must contain transcript-level coordinates, usually:
+
+        transcript_id
+        transcript_pos_1based
+
+Output:
+    The output table contains genomic coordinate columns:
+
+        chr
+        pos_1based
+        start_0based
+        end_0based_exclusive
+        strand
+        transcript_id
+        transcript_position_0based
+
+    All non-coordinate input columns are preserved whenever possible.
+"""
 
 from __future__ import annotations
 
 import argparse
 import csv
 import gzip
+import os
 import sys
 from bisect import bisect_right
 from collections import defaultdict
+from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, TextIO, Tuple
 
 
 Exon = Tuple[int, int]
 
 
-class TranscriptModel(object):
+class ConversionError(Exception):
+    pass
+
+
+class TranscriptModel:
     def __init__(self, chrom: str, strand: str, exons: List[Exon]) -> None:
         self.chrom = chrom
         self.strand = strand
         self.exons = exons
-        self.cumulative_ends = []  # type: List[int]
+        self.cumulative_ends: List[int] = []
+
         total = 0
         for exon_start, exon_end in exons:
             total += exon_end - exon_start + 1
@@ -42,68 +84,22 @@ class TranscriptModel(object):
         exon_start, exon_end = self.exons[exon_index]
 
         if self.strand == "+":
-            genomic_position_1based = exon_start + offset
-        else:
-            genomic_position_1based = exon_end - offset
-        return genomic_position_1based
+            return exon_start + offset
+
+        if self.strand == "-":
+            return exon_end - offset
+
+        raise ConversionError("unsupported transcript strand: %s" % self.strand)
+
+
+def log(message: str) -> None:
+    print(message, file=sys.stderr, flush=True)
 
 
 def open_text(path: str) -> TextIO:
     if path.endswith(".gz"):
-        return gzip.open(path, "rt")
+        return gzip.open(path, "rt", newline="")
     return open(path, "r", newline="")
-
-
-def parse_gtf_attributes(attributes: str) -> Dict[str, str]:
-    parsed = {}  # type: Dict[str, str]
-    for field in attributes.strip().rstrip(";").split(";"):
-        field = field.strip()
-        if not field:
-            continue
-        parts = field.split(None, 1)
-        if len(parts) != 2:
-            continue
-        key, value = parts
-        parsed[key] = value.strip().strip('"')
-    return parsed
-
-
-def load_transcripts(gtf_path: str) -> Dict[str, TranscriptModel]:
-    raw = defaultdict(list)  # type: Dict[str, List[Tuple[str, str, int, int]]]
-    with open_text(gtf_path) as handle:
-        for line in handle:
-            if not line or line.startswith("#"):
-                continue
-            fields = line.rstrip("\n").split("\t")
-            if len(fields) < 9 or fields[2] != "exon":
-                continue
-            chrom = fields[0]
-            start = int(fields[3])
-            end = int(fields[4])
-            strand = fields[6]
-            attrs = parse_gtf_attributes(fields[8])
-            transcript_id = attrs.get("transcript_id")
-            if not transcript_id:
-                continue
-            raw[transcript_id].append((chrom, strand, start, end))
-
-    models = {}  # type: Dict[str, TranscriptModel]
-    for transcript_id, records in raw.items():
-        chroms = {record[0] for record in records}
-        strands = {record[1] for record in records}
-        if len(chroms) != 1 or len(strands) != 1:
-            raise ValueError("Inconsistent GTF exon records for transcript: %s" % transcript_id)
-        chrom = records[0][0]
-        strand = records[0][1]
-        if strand == "+":
-            records.sort(key=lambda record: record[2])
-        elif strand == "-":
-            records.sort(key=lambda record: record[2], reverse=True)
-        else:
-            raise ValueError("Unsupported strand for transcript %s: %s" % (transcript_id, strand))
-        exons = [(record[2], record[3]) for record in records]
-        models[transcript_id] = TranscriptModel(chrom, strand, exons)
-    return models
 
 
 def delimiter_from_option(value: str) -> str:
@@ -113,54 +109,96 @@ def delimiter_from_option(value: str) -> str:
         return ","
     if len(value) == 1:
         return value
-    raise ValueError("Unsupported input separator: %s" % value)
+    raise ConversionError("unsupported separator: %s" % value)
 
 
-def require_columns(fieldnames: Optional[Sequence[str]], columns: Iterable[Optional[str]]) -> None:
+def parse_gtf_attributes(attributes: str) -> Dict[str, str]:
+    parsed: Dict[str, str] = {}
+
+    for field in attributes.strip().rstrip(";").split(";"):
+        field = field.strip()
+        if not field:
+            continue
+
+        parts = field.split(None, 1)
+        if len(parts) != 2:
+            continue
+
+        key, value = parts
+        parsed[key] = value.strip().strip('"')
+
+    return parsed
+
+
+def load_transcripts(gtf_path: str) -> Dict[str, TranscriptModel]:
+    raw: Dict[str, List[Tuple[str, str, int, int]]] = defaultdict(list)
+
+    with open_text(gtf_path) as handle:
+        for line in handle:
+            if not line or line.startswith("#"):
+                continue
+
+            fields = line.rstrip("\n\r").split("\t")
+            if len(fields) < 9:
+                continue
+
+            if fields[2] != "exon":
+                continue
+
+            chrom = fields[0]
+            start = int(fields[3])
+            end = int(fields[4])
+            strand = fields[6]
+
+            attrs = parse_gtf_attributes(fields[8])
+            transcript_id = attrs.get("transcript_id")
+
+            if not transcript_id:
+                continue
+
+            raw[transcript_id].append((chrom, strand, start, end))
+
+    models: Dict[str, TranscriptModel] = {}
+
+    for transcript_id, records in raw.items():
+        chroms = {record[0] for record in records}
+        strands = {record[1] for record in records}
+
+        if len(chroms) != 1 or len(strands) != 1:
+            raise ConversionError("inconsistent exon records for transcript: %s" % transcript_id)
+
+        chrom = records[0][0]
+        strand = records[0][1]
+
+        if strand == "+":
+            records.sort(key=lambda record: record[2])
+        elif strand == "-":
+            records.sort(key=lambda record: record[2], reverse=True)
+        else:
+            raise ConversionError("unsupported strand for transcript %s: %s" % (transcript_id, strand))
+
+        exons = [(record[2], record[3]) for record in records]
+        models[transcript_id] = TranscriptModel(chrom, strand, exons)
+
+    if not models:
+        raise ConversionError("no transcript models loaded from GTF: %s" % gtf_path)
+
+    return models
+
+
+def require_columns(fieldnames: Optional[Sequence[str]], columns: Iterable[str]) -> None:
     if fieldnames is None:
-        raise SystemExit("ERROR: input table is missing a header row")
-    missing = [column for column in columns if column and column not in fieldnames]
+        raise ConversionError("input table is missing a header row")
+
+    missing = [column for column in columns if column not in fieldnames]
     if missing:
-        raise SystemExit("ERROR: missing required input column(s): %s" % ", ".join(missing))
+        raise ConversionError("missing required input column(s): %s" % ", ".join(missing))
 
 
-def normalized_columns(args: argparse.Namespace, row: Dict[str, str]) -> Dict[str, str]:
-    normalized = {}  # type: Dict[str, str]
-    tool = (args.tool_name or "").lower()
-
-    if tool == "dorado":
-        if args.modified_count_column:
-            normalized["dorado_m6A_count"] = row.get(args.modified_count_column, "")
-        if args.depth_column:
-            normalized["dorado_depth"] = row.get(args.depth_column, "")
-        if args.percent_column:
-            normalized["dorado_m6A_percent"] = row.get(args.percent_column, "")
-        if args.stoich_column:
-            normalized["dorado_stoich"] = row.get(args.stoich_column, "")
-    elif tool == "m6anet":
-        if args.depth_column:
-            normalized["m6anet_depth"] = row.get(args.depth_column, "")
-        if "probability_modified" in row:
-            normalized["m6anet_site_probability"] = row.get("probability_modified", "")
-        if args.stoich_column:
-            normalized["m6anet_stoich"] = row.get(args.stoich_column, "")
-        if "kmer" in row:
-            normalized["kmer"] = row.get("kmer", "")
-    else:
-        if args.modified_count_column:
-            normalized["modified_count"] = row.get(args.modified_count_column, "")
-        if args.depth_column:
-            normalized["depth"] = row.get(args.depth_column, "")
-        if args.percent_column:
-            normalized["percent"] = row.get(args.percent_column, "")
-        if args.stoich_column:
-            normalized["stoich"] = row.get(args.stoich_column, "")
-
-    return normalized
-
-
-def make_output_header(
-    input_header: Sequence[str], args: argparse.Namespace, first_normalized: Dict[str, str]
+def build_output_header(
+    input_header: Sequence[str],
+    transcript_column: str,
+    position_column: str,
 ) -> List[str]:
     standard = [
         "chr",
@@ -171,150 +209,224 @@ def make_output_header(
         "transcript_id",
         "transcript_position_0based",
     ]
-    header = list(standard)
-    for column in first_normalized.keys():
-        if column not in header:
-            header.append(column)
 
-    consumed = {
-        args.transcript_column,
-        args.position_column,
-        args.depth_column,
-        args.stoich_column,
-        args.modified_count_column,
-        args.percent_column,
-    }
+    header = list(standard)
+    consumed = {transcript_column, position_column}
+
     for column in input_header:
         if column in consumed:
             continue
+
         output_column = column
+
         if output_column in header:
             output_column = "input_" + output_column
+
         if output_column not in header:
             header.append(output_column)
+
     return header
 
 
+def parse_transcript_position(value: str, line_number: int, column: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError:
+        raise ConversionError(
+            "line %d: non-integer transcript coordinate in column %s: %s"
+            % (line_number, column, value)
+        )
+
+    return parsed
+
+
 def convert(args: argparse.Namespace) -> int:
+    input_path = Path(args.input)
+    output_path = Path(args.output)
+
+    if not input_path.exists() or input_path.stat().st_size == 0:
+        raise ConversionError("input file missing or empty: %s" % input_path)
+
+    if output_path.exists() and not args.force:
+        raise ConversionError("output exists; use --force to overwrite: %s" % output_path)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
     delimiter = delimiter_from_option(args.input_separator)
     models = load_transcripts(args.gtf)
 
     total_sites = 0
     converted_sites = 0
-    missing_transcripts = defaultdict(int)  # type: Dict[str, int]
-    out_of_range = defaultdict(int)  # type: Dict[str, int]
+    missing_transcripts: Dict[str, int] = defaultdict(int)
+    out_of_range: Dict[str, int] = defaultdict(int)
 
-    with open_text(args.input) as in_handle:
-        reader = csv.DictReader(in_handle, delimiter=delimiter)
-        required = [
-            args.transcript_column,
-            args.position_column,
-            args.depth_column,
-            args.stoich_column,
-            args.modified_count_column,
-            args.percent_column,
-        ]
-        require_columns(reader.fieldnames, required)
-        input_header = reader.fieldnames or []
-        rows = list(reader)
+    output_tmp = str(output_path) + ".tmp.%d" % os.getpid()
 
-    output_rows = []  # type: List[Dict[str, str]]
-    output_header = None  # type: Optional[List[str]]
+    log("input_path\t%s" % input_path)
+    log("gtf_path\t%s" % args.gtf)
+    log("output_path\t%s" % output_path)
+    log("transcript_column\t%s" % args.transcript_column)
+    log("position_column\t%s" % args.position_column)
+    log("position_base\t%s" % args.position_base)
 
-    for row in rows:
-        total_sites += 1
-        transcript_id = row[args.transcript_column]
-        model = models.get(transcript_id)
-        if model is None:
-            missing_transcripts[transcript_id] += 1
-            continue
+    success = False
 
-        try:
-            input_position = int(row[args.position_column])
-        except ValueError:
-            raise SystemExit(
-                "ERROR: non-integer transcript coordinate in column %s: %s"
-                % (args.position_column, row[args.position_column])
+    try:
+        with open_text(str(input_path)) as in_handle:
+            reader = csv.DictReader(in_handle, delimiter=delimiter)
+
+            require_columns(
+                reader.fieldnames,
+                [args.transcript_column, args.position_column],
             )
-        transcript_position_0based = input_position if args.position_base == 0 else input_position - 1
-        genomic_position_1based = model.map_position(transcript_position_0based)
-        if genomic_position_1based is None:
-            out_of_range[transcript_id] += 1
-            continue
 
-        normalized = normalized_columns(args, row)
-        if output_header is None:
-            output_header = make_output_header(input_header, args, normalized)
+            input_header = reader.fieldnames or []
+            output_header = build_output_header(
+                input_header=input_header,
+                transcript_column=args.transcript_column,
+                position_column=args.position_column,
+            )
 
-        out_row = {}  # type: Dict[str, str]
-        out_row["chr"] = model.chrom
-        out_row["pos_1based"] = str(genomic_position_1based)
-        out_row["start_0based"] = str(genomic_position_1based - 1)
-        out_row["end_0based_exclusive"] = str(genomic_position_1based)
-        out_row["strand"] = model.strand
-        out_row["transcript_id"] = transcript_id
-        out_row["transcript_position_0based"] = str(transcript_position_0based)
-        out_row.update(normalized)
+            with open(output_tmp, "w", newline="") as out_handle:
+                writer = csv.DictWriter(
+                    out_handle,
+                    fieldnames=output_header,
+                    delimiter="\t",
+                    lineterminator="\n",
+                    extrasaction="ignore",
+                )
+                writer.writeheader()
 
-        consumed = {
-            args.transcript_column,
-            args.position_column,
-            args.depth_column,
-            args.stoich_column,
-            args.modified_count_column,
-            args.percent_column,
-        }
-        for column in input_header:
-            if column in consumed:
-                continue
-            output_column = column if column not in out_row else "input_" + column
-            out_row[output_column] = row.get(column, "")
+                for line_number, row in enumerate(reader, start=2):
+                    total_sites += 1
 
-        output_rows.append(out_row)
-        converted_sites += 1
+                    transcript_id = row[args.transcript_column].strip()
+                    if not transcript_id:
+                        raise ConversionError("line %d: transcript ID is empty" % line_number)
 
-    if output_header is None:
-        output_header = make_output_header(input_header, args, {})
+                    model = models.get(transcript_id)
+                    if model is None:
+                        missing_transcripts[transcript_id] += 1
+                        continue
 
-    with open(args.output, "w", newline="") as out_handle:
-        writer = csv.DictWriter(out_handle, fieldnames=output_header, delimiter="\t", extrasaction="ignore")
-        writer.writeheader()
-        for out_row in output_rows:
-            writer.writerow(out_row)
+                    input_position = parse_transcript_position(
+                        row[args.position_column],
+                        line_number,
+                        args.position_column,
+                    )
 
-    print("input_sites\t%d" % total_sites, file=sys.stderr)
-    print("converted_sites\t%d" % converted_sites, file=sys.stderr)
-    print("missing_transcript_ids\t%d" % len(missing_transcripts), file=sys.stderr)
-    for transcript_id, count in sorted(missing_transcripts.items()):
-        print("missing_transcript_id\t%s\t%d" % (transcript_id, count), file=sys.stderr)
-    print("out_of_range_transcript_ids\t%d" % len(out_of_range), file=sys.stderr)
-    for transcript_id, count in sorted(out_of_range.items()):
-        print("out_of_range_transcript_id\t%s\t%d" % (transcript_id, count), file=sys.stderr)
+                    if args.position_base == 0:
+                        transcript_position_0based = input_position
+                    else:
+                        transcript_position_0based = input_position - 1
 
-    return 0
+                    genomic_position_1based = model.map_position(transcript_position_0based)
+
+                    if genomic_position_1based is None:
+                        out_of_range[transcript_id] += 1
+                        continue
+
+                    out_row: Dict[str, str] = {
+                        "chr": model.chrom,
+                        "pos_1based": str(genomic_position_1based),
+                        "start_0based": str(genomic_position_1based - 1),
+                        "end_0based_exclusive": str(genomic_position_1based),
+                        "strand": model.strand,
+                        "transcript_id": transcript_id,
+                        "transcript_position_0based": str(transcript_position_0based),
+                    }
+
+                    consumed = {args.transcript_column, args.position_column}
+
+                    for column in input_header:
+                        if column in consumed:
+                            continue
+
+                        output_column = column
+                        if output_column in out_row:
+                            output_column = "input_" + output_column
+
+                        out_row[output_column] = row.get(column, "")
+
+                    writer.writerow(out_row)
+                    converted_sites += 1
+
+                    if converted_sites % 1000000 == 0:
+                        log("converted_sites\t%d" % converted_sites)
+
+        os.replace(output_tmp, output_path)
+        success = True
+
+        log("input_sites\t%d" % total_sites)
+        log("converted_sites\t%d" % converted_sites)
+        log("missing_transcript_ids\t%d" % len(missing_transcripts))
+        log("out_of_range_transcript_ids\t%d" % len(out_of_range))
+
+        for transcript_id, count in sorted(missing_transcripts.items()):
+            log("missing_transcript_id\t%s\t%d" % (transcript_id, count))
+
+        for transcript_id, count in sorted(out_of_range.items()):
+            log("out_of_range_transcript_id\t%s\t%d" % (transcript_id, count))
+
+        log("output_file_path\t%s" % output_path)
+
+        return 0
+
+    finally:
+        if not success and os.path.exists(output_tmp):
+            try:
+                os.remove(output_tmp)
+            except OSError:
+                pass
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", required=True)
-    parser.add_argument("--gtf", required=True)
-    parser.add_argument("--output", required=True)
-    parser.add_argument("--transcript-column", required=True)
-    parser.add_argument("--position-column", required=True)
-    parser.add_argument("--position-base", required=True, type=int, choices=(0, 1))
-    parser.add_argument("--input-separator", default="\\t")
-    parser.add_argument("--depth-column")
-    parser.add_argument("--stoich-column")
-    parser.add_argument("--modified-count-column")
-    parser.add_argument("--percent-column")
-    parser.add_argument("--tool-name")
+
+    parser.add_argument("--input", required=True, help="Input transcript-level TSV/CSV")
+    parser.add_argument("--gtf", required=True, help="GTF annotation file")
+    parser.add_argument("--output", required=True, help="Output genomic-coordinate TSV")
+
+    parser.add_argument(
+        "--transcript-column",
+        required=True,
+        help="Column containing transcript IDs",
+    )
+    parser.add_argument(
+        "--position-column",
+        required=True,
+        help="Column containing transcript coordinate",
+    )
+    parser.add_argument(
+        "--position-base",
+        required=True,
+        type=int,
+        choices=(0, 1),
+        help="Base of input transcript coordinate: 0 or 1",
+    )
+    parser.add_argument(
+        "--input-separator",
+        default="\\t",
+        help="Input separator: tab, tsv, comma, csv, or a single character. Output is always TSV.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite output if it already exists",
+    )
+
     return parser
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    return convert(args)
+
+    try:
+        return convert(args)
+    except ConversionError as exc:
+        print("ERROR: %s" % exc, file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
