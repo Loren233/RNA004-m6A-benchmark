@@ -64,6 +64,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bins", type=int, default=150)
     parser.add_argument("--dpi", type=int, default=300)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--allow-empty-groups", action="store_true", help="Keep requested groups even if some groups have zero matched rows.")
     return parser.parse_args()
 
 
@@ -120,18 +121,26 @@ def _is_na(value: object) -> bool:
     return str(value).strip().upper() in {"", "NA", "NAN"}
 
 
-def validate_summary(df: pd.DataFrame, groups: list[str]) -> pd.DataFrame:
+def validate_summary(df: pd.DataFrame, groups: list[str], allow_missing_groups: bool = False) -> pd.DataFrame:
     for col in SUMMARY_COLUMNS:
         if col not in df.columns:
             fail(f"summary table is missing required column: {col}")
     if df["group"].astype(str).duplicated().any():
         duplicates = sorted(df.loc[df["group"].astype(str).duplicated(), "group"].astype(str).unique())
         fail("summary table contains duplicate group rows: " + ", ".join(duplicates))
-    missing = [group for group in groups if group not in set(df["group"].astype(str))]
-    if missing:
-        fail("summary table is missing requested group(s): " + ", ".join(missing))
     out = df.copy()
     out["group"] = out["group"].astype(str)
+    missing = [group for group in groups if group not in set(out["group"].astype(str))]
+    if missing:
+        if not allow_missing_groups:
+            fail("summary table is missing requested group(s): " + ", ".join(missing))
+        filler = pd.DataFrame(
+            [
+                {"group": group, "n": "0", "pearson_r2": "NA", "spearman_rho2": "NA"}
+                for group in missing
+            ]
+        )
+        out = pd.concat([out, filler], ignore_index=True, sort=False)
     for group in groups:
         row = out.loc[out["group"] == group].iloc[0]
         n_value = pd.to_numeric(pd.Series([row["n"]]), errors="coerce").iloc[0]
@@ -201,8 +210,8 @@ def plot(args: argparse.Namespace) -> tuple[Path, Path]:
     pdf_path, png_path = output_paths(args.output_prefix)
     refuse_overwrite((pdf_path, png_path), args.force)
 
-    matched = validate_matched(read_tsv(args.matched_table), args.x_column, args.y_column, args.group_column, groups, require_groups=True)
-    summary = validate_summary(read_tsv(args.summary_table), groups)
+    matched = validate_matched(read_tsv(args.matched_table), args.x_column, args.y_column, args.group_column, groups, require_groups=not args.allow_empty_groups)
+    summary = validate_summary(read_tsv(args.summary_table), groups, allow_missing_groups=args.allow_empty_groups)
 
     panels = []
     global_max = 1.0
