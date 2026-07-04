@@ -38,6 +38,30 @@ DORADO_OUTPUT_COLUMNS = [
     "source",
 ]
 
+M6ANET_REQUIRED_COLUMNS = [
+    "transcript_id",
+    "transcript_position",
+    "n_reads",
+    "probability_modified",
+    "kmer",
+    "mod_ratio",
+]
+
+M6ANET_OUTPUT_COLUMNS = [
+    "ref",
+    "transcript_id",
+    "pos_1based",
+    "transcript_pos_1based",
+    "start_0based",
+    "end",
+    "site_id",
+    "m6anet_stoich",
+    "depth",
+    "modified_count",
+    "probability_modified",
+    "motif",
+    "source",
+]
 
 class StandardizationError(Exception):
     pass
@@ -448,6 +472,147 @@ def run_dorado(args: argparse.Namespace) -> int:
             if proc is not None and proc.poll() is None:
                 proc.terminate()
 
+def parse_probability(value: str, line_number: int, column: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError:
+        raise StandardizationError("line %d: %s must be numeric" % (line_number, column))
+    if parsed < 0.0 or parsed > 1.0:
+        raise StandardizationError("line %d: %s must be between 0 and 1" % (line_number, column))
+    return parsed
+
+
+def run_m6anet(args: argparse.Namespace) -> int:
+    input_path = Path(args.input)
+    output_path = Path(args.output)
+
+    if output_path.exists() and not args.force:
+        raise StandardizationError("output exists; use --force to overwrite: %s" % output_path)
+
+    if not input_path.exists() or input_path.stat().st_size == 0:
+        raise StandardizationError("input file missing or empty: %s" % input_path)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_tmp = str(output_path) + ".tmp.%d" % os.getpid()
+
+    input_records = 0
+    output_records = 0
+    skipped_zero_depth = 0
+
+    log("start_time\t%s" % now())
+    log("tool\tm6Anet")
+    log("input_path\t%s" % input_path)
+    log("output_path\t%s" % output_path)
+    log("position_base\t%s" % args.position_base)
+
+    success = False
+
+    try:
+        with open_text(str(input_path)) as in_handle:
+            reader = csv.DictReader(in_handle)
+
+            if reader.fieldnames is None:
+                raise StandardizationError("input has no header: %s" % input_path)
+
+            missing = [column for column in M6ANET_REQUIRED_COLUMNS if column not in reader.fieldnames]
+            if missing:
+                raise StandardizationError(
+                    "missing required input column(s): %s" % ", ".join(missing)
+                )
+
+            with open(output_tmp, "w", newline="") as out_handle:
+                writer = csv.DictWriter(
+                    out_handle,
+                    fieldnames=M6ANET_OUTPUT_COLUMNS,
+                    delimiter="\t",
+                    lineterminator="\n",
+                )
+                writer.writeheader()
+
+                for line_number, row in enumerate(reader, start=2):
+                    input_records += 1
+
+                    transcript_id = row["transcript_id"].strip()
+                    if not transcript_id:
+                        raise StandardizationError(
+                            "line %d: transcript_id must be non-empty" % line_number
+                        )
+
+                    transcript_position = parse_nonnegative_int(
+                        row["transcript_position"], line_number, "transcript_position"
+                    )
+                    depth = parse_positive_int(row["n_reads"], line_number, "n_reads")
+                    probability_modified = parse_probability(
+                        row["probability_modified"], line_number, "probability_modified"
+                    )
+                    stoich = parse_probability(row["mod_ratio"], line_number, "mod_ratio")
+                    motif = row["kmer"].strip()
+
+                    if depth <= 0:
+                        skipped_zero_depth += 1
+                        continue
+
+                    if args.position_base == "0":
+                        pos_1based = transcript_position + 1
+                    else:
+                        pos_1based = transcript_position
+
+                    if pos_1based <= 0:
+                        raise StandardizationError(
+                            "line %d: converted pos_1based must be positive" % line_number
+                        )
+
+                    start_0based = pos_1based - 1
+                    end = pos_1based
+
+                    modified_count = int(round(float(depth) * stoich))
+                    if modified_count < 0:
+                        modified_count = 0
+                    if modified_count > depth:
+                        modified_count = depth
+
+                    site_id = "%s|%s|%s" % (transcript_id, pos_1based, motif)
+
+                    writer.writerow(
+                        {
+                            "ref": transcript_id,
+                            "transcript_id": transcript_id,
+                            "pos_1based": str(pos_1based),
+                            "transcript_pos_1based": str(pos_1based),
+                            "start_0based": str(start_0based),
+                            "end": str(end),
+                            "site_id": site_id,
+                            "m6anet_stoich": format(stoich, ".10g"),
+                            "depth": str(depth),
+                            "modified_count": str(modified_count),
+                            "probability_modified": format(probability_modified, ".10g"),
+                            "motif": motif,
+                            "source": "m6Anet",
+                        }
+                    )
+
+                    output_records += 1
+
+                    if output_records % 1000000 == 0:
+                        log("written_records\t%d" % output_records)
+
+        os.replace(output_tmp, output_path)
+        success = True
+
+        log("input_record_count\t%d" % input_records)
+        log("output_record_count\t%d" % output_records)
+        log("skipped_zero_depth\t%d" % skipped_zero_depth)
+        log("output_file_path\t%s" % output_path)
+        log("finish_time\t%s" % now())
+
+        return 0
+
+    finally:
+        if not success and os.path.exists(output_tmp):
+            try:
+                os.remove(output_tmp)
+            except OSError:
+                pass
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -461,6 +626,18 @@ def build_parser() -> argparse.ArgumentParser:
     dorado.add_argument("--sort-memory", default="2G")
     dorado.add_argument("--force", action="store_true")
     dorado.set_defaults(func=run_dorado)
+	
+    m6anet = subparsers.add_parser("m6anet", help="standardize m6Anet transcript-level site table")
+    m6anet.add_argument("--input", required=True)
+    m6anet.add_argument("--output", required=True)
+    m6anet.add_argument(
+        "--position-base",
+        choices=["0", "1"],
+        default="0",
+        help="base of m6Anet transcript_position; default assumes 0-based input",
+    )
+    m6anet.add_argument("--force", action="store_true")
+    m6anet.set_defaults(func=run_m6anet)
 
     return parser
 
