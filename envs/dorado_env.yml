@@ -141,7 +141,6 @@ dependencies:
       - cycler==0.12.1
       - dask==2026.6.0
       - deprecated==1.2.18
-      - dorado==1.2.0
       - fasteners==0.20
       - fonttools==4.63.0
       - fsspec==2026.6.0
