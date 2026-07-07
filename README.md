@@ -16,6 +16,16 @@ Supported cell-line benchmarks:
 Do not label GLORI as the HeLa ground truth, and do not label eTAM-seq as the
 HEK293T ground truth.
 
+## Benchmark Overview
+
+The figure below summarizes the site-level stoichiometry comparison between four RNA modification callers and GLORI ground truth on the PRJEB80229 HEK293T RNA004 direct RNA dataset.
+
+<p align="center">
+  <img src="results/PRJEB80229_HEK293T_total_benchmark.png" width="900">
+</p>
+
+Full-resolution figure: [PRJEB80229_HEK293T_total_benchmark.pdf](results/PRJEB80229_HEK293T_total_benchmark.pdf)
+
 ## Data Flow by Tool
 
 ### Dorado
@@ -140,41 +150,8 @@ See `docs/references_and_coordinates.md`. In short:
 - m6Anet `transcript_position` is treated as 0-based by the current planned
   conversion.
 - Site tables should use explicit names such as `start_0based`, `pos_1based`,
-  and `transcript_position_0based`.
+  and `transcript_position_0based`
 
-## Repository Layout
-
-```text
-RNA004-m6A-benchmark/
-├── README.md
-├── docs/
-│   ├── pipeline_overview.md
-│   ├── references_and_coordinates.md
-│   ├── ground_truths.md
-│   ├── dorado.md
-│   ├── deeprm.md
-│   ├── m6anet.md
-│   ├── singlemod.md
-│   └── source/pipeline.docx
-├── configs/
-│   ├── example.env
-│   ├── hek293t.example.env
-│   ├── hela.example.env
-│   ├── paths.example.sh
-│   ├── hek293t.yaml
-│   └── hela.yaml
-├── scripts/
-│   ├── dorado/
-│   ├── deeprm/
-│   ├── m6anet/
-│   ├── singlemod/
-│   ├── comparison/
-│   └── utilities/
-├── metadata/
-├── slurm/
-├── results/
-└── archive/
-```
 
 The older numbered scaffold directories under `scripts/` are retained as empty
 placeholders from the initial project layout. The tool-oriented directories are
