@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Plot a multi-tool, multi-depth ground-truth comparison grid.
-
-This version:
-1. Uses the single-plot paper density style.
-2. Computes R2/rho2 directly from the plotted matched table.
-3. Puts the density colorbar in a dedicated bottom row, so it will not overlap panels.
-"""
+"""Plot a multi-tool, multi-depth ground-truth comparison grid."""
 
 from __future__ import annotations
 
