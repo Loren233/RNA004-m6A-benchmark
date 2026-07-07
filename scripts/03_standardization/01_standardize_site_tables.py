@@ -63,6 +63,33 @@ M6ANET_OUTPUT_COLUMNS = [
     "source",
 ]
 
+
+DEEPRM_REQUIRED_COLUMNS = [
+    "transcript_id",
+    "pos_1based",
+    "depth",
+    "mod_count",
+    "stoich",
+    "modified_base",
+]
+
+DEEPRM_OUTPUT_COLUMNS = [
+    "ref",
+    "transcript_id",
+    "pos_1based",
+    "transcript_pos_1based",
+    "start_0based",
+    "end",
+    "site_id",
+    "deeprm_stoich",
+    "stoich",
+    "depth",
+    "modified_count",
+    "probability_modified",
+    "modified_base",
+    "source",
+]
+
 class StandardizationError(Exception):
     pass
 
@@ -614,6 +641,137 @@ def run_m6anet(args: argparse.Namespace) -> int:
             except OSError:
                 pass
 
+
+def parse_nonnegative_count_like(value: str, line_number: int, column: str) -> int:
+    try:
+        parsed = float(value)
+    except ValueError:
+        raise StandardizationError("line %d: %s must be numeric" % (line_number, column))
+    if parsed < 0:
+        raise StandardizationError("line %d: %s must be non-negative" % (line_number, column))
+    return int(round(parsed))
+
+
+def run_deeprm(args: argparse.Namespace) -> int:
+    input_path = Path(args.input)
+    output_path = Path(args.output)
+
+    if output_path.exists() and not args.force:
+        raise StandardizationError("output exists; use --force to overwrite: %s" % output_path)
+
+    if not input_path.exists() or input_path.stat().st_size == 0:
+        raise StandardizationError("input file missing or empty: %s" % input_path)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_tmp = str(output_path) + ".tmp.%d" % os.getpid()
+
+    input_records = 0
+    output_records = 0
+    skipped_zero_depth = 0
+
+    log("start_time\t%s" % now())
+    log("tool\tDeepRM")
+    log("input_path\t%s" % input_path)
+    log("output_path\t%s" % output_path)
+
+    success = False
+
+    try:
+        with open_text(str(input_path)) as in_handle:
+            reader = csv.DictReader(in_handle, delimiter="\t")
+
+            if reader.fieldnames is None:
+                raise StandardizationError("input has no header: %s" % input_path)
+
+            missing = [column for column in DEEPRM_REQUIRED_COLUMNS if column not in reader.fieldnames]
+            if missing:
+                raise StandardizationError(
+                    "missing required input column(s): %s" % ", ".join(missing)
+                )
+
+            with open(output_tmp, "w", newline="") as out_handle:
+                writer = csv.DictWriter(
+                    out_handle,
+                    fieldnames=DEEPRM_OUTPUT_COLUMNS,
+                    delimiter="\t",
+                    lineterminator="\n",
+                )
+                writer.writeheader()
+
+                for line_number, row in enumerate(reader, start=2):
+                    input_records += 1
+
+                    transcript_id = row["transcript_id"].strip()
+                    if not transcript_id:
+                        raise StandardizationError(
+                            "line %d: transcript_id must be non-empty" % line_number
+                        )
+
+                    pos_1based = parse_positive_int(
+                        row["pos_1based"], line_number, "pos_1based"
+                    )
+                    depth = parse_positive_int(row["depth"], line_number, "depth")
+                    modified_count = parse_nonnegative_count_like(
+                        row["mod_count"], line_number, "mod_count"
+                    )
+                    stoich = parse_probability(row["stoich"], line_number, "stoich")
+                    modified_base = row["modified_base"].strip()
+
+                    if depth <= 0:
+                        skipped_zero_depth += 1
+                        continue
+
+                    if modified_count > depth:
+                        raise StandardizationError(
+                            "line %d: mod_count must be <= depth" % line_number
+                        )
+
+                    start_0based = pos_1based - 1
+                    end = pos_1based
+                    site_id = "%s|%s|%s" % (transcript_id, pos_1based, modified_base)
+
+                    writer.writerow(
+                        {
+                            "ref": transcript_id,
+                            "transcript_id": transcript_id,
+                            "pos_1based": str(pos_1based),
+                            "transcript_pos_1based": str(pos_1based),
+                            "start_0based": str(start_0based),
+                            "end": str(end),
+                            "site_id": site_id,
+                            "deeprm_stoich": format(stoich, ".10g"),
+                            "stoich": format(stoich, ".10g"),
+                            "depth": str(depth),
+                            "modified_count": str(modified_count),
+                            "probability_modified": format(stoich, ".10g"),
+                            "modified_base": modified_base,
+                            "source": "DeepRM",
+                        }
+                    )
+
+                    output_records += 1
+
+                    if output_records % 10000000 == 0:
+                        log("written_records\t%d" % output_records)
+
+        os.replace(output_tmp, output_path)
+        success = True
+
+        log("input_record_count\t%d" % input_records)
+        log("output_record_count\t%d" % output_records)
+        log("skipped_zero_depth\t%d" % skipped_zero_depth)
+        log("output_file_path\t%s" % output_path)
+        log("finish_time\t%s" % now())
+
+        return 0
+
+    finally:
+        if not success and os.path.exists(output_tmp):
+            try:
+                os.remove(output_tmp)
+            except OSError:
+                pass
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command")
@@ -638,6 +796,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     m6anet.add_argument("--force", action="store_true")
     m6anet.set_defaults(func=run_m6anet)
+
+
+    deeprm = subparsers.add_parser("deeprm", help="standardize DeepRM transcript-level site table")
+    deeprm.add_argument("--input", required=True)
+    deeprm.add_argument("--output", required=True)
+    deeprm.add_argument("--force", action="store_true")
+    deeprm.set_defaults(func=run_deeprm)
 
     return parser
 

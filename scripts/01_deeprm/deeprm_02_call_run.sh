@@ -4,22 +4,13 @@ set -euo pipefail
 source "$(dirname "$0")/../utilities/common.sh"
 
 require_var DEEPRM
-require_var DEEPRM_MODEL_DIR
+require_var DEEPRM_MODEL_FILE
 require_var PREP_DIR
 require_var BAM
 require_var CALL_DIR
 
 require_file "$BAM"
-
-if [[ ! -d "$DEEPRM_MODEL_DIR" ]]; then
-    echo "ERROR: DEEPRM_MODEL_DIR does not exist or is not a directory: $DEEPRM_MODEL_DIR" >&2
-    exit 1
-fi
-
-if [[ ! -f "$DEEPRM_MODEL_DIR/config.toml" ]]; then
-    echo "ERROR: DeepRM model config.toml not found in: $DEEPRM_MODEL_DIR" >&2
-    exit 1
-fi
+require_file "$DEEPRM_MODEL_FILE"
 
 if [[ ! -d "$PREP_DIR" ]]; then
     echo "ERROR: PREP_DIR does not exist or is not a directory: $PREP_DIR" >&2
@@ -29,7 +20,7 @@ fi
 mkdir -p "$CALL_DIR"
 
 "$DEEPRM" call run \
-    --model "$DEEPRM_MODEL_DIR" \
+    --model "$DEEPRM_MODEL_FILE" \
     --input "$PREP_DIR" \
     --bam "$BAM" \
     --output "$CALL_DIR" \
