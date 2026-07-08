@@ -235,7 +235,7 @@ def plot(args: argparse.Namespace) -> tuple[Path, Path]:
         x, y, density = panels[index]
         if len(x):
             order = np.argsort(density)
-            ax.scatter(x[order], y[order], c=density[order], cmap=cmap, norm=norm, s=5, linewidths=0, rasterized=True)
+            ax.scatter(x[order], y[order], c=density[order], cmap=cmap, norm=norm, s=5, linewidths=0, rasterized=True, zorder=1)
 
         pearson_r2, spearman_rho2, n_text = stats_for(summary, group)
         ax.text(
@@ -247,12 +247,12 @@ def plot(args: argparse.Namespace) -> tuple[Path, Path]:
             va="top",
             fontsize=9,
             bbox=dict(
-                boxstyle="round,pad=0.28",
+                boxstyle="round,pad=0.35",
                 facecolor="white",
                 edgecolor="none",
-                alpha=0.92,
+                alpha=1.0,
             ),
-            zorder=5,
+            zorder=100,
         )
 
         ax.set_title(f"{args.tool_name} | {label}", fontsize=11, pad=4)

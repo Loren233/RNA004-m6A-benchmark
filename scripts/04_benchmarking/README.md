@@ -1,94 +1,134 @@
-# 04_benchmarking   
+# Benchmarking scripts
 
-This folder contains scripts for benchmarking standardized RNA modification prediction results against ground truth datasets such as GLORI or eTAM.
+This directory contains generic benchmarking scripts for comparing standardized
+site-level prediction tables against standardized ground-truth tables.
 
-The input files should already be standardized into genomic site-level coordinates before using these scripts.
+The scripts are ground-truth agnostic. They can be used with GLORI, eTAM-seq,
+m6A-SAC-seq, m6ACE-seq, miCLIP-derived site tables, or other site-level truth
+sets, as long as the required columns are provided through command-line options.
 
-The recommended order is:
+## Scripts
 
-1. `01_match_sites_by_offset.py`
-2. `02_calculate_correlations.py`
-3. `03_stratify_by_depth.py`
+### 01_match_sites_by_offset.py
 
-## Required input format
+Match prediction sites to ground-truth sites by genomic coordinate and strand.
 
-Prediction files should use genomic coordinates and include columns such as:
+Offset convention:
 
-- `chr`
-- `pos_1based`
-- `strand`
-- `stoich`
-- `depth`
-- `modified_count`
-- `motif`
+    prediction_pos_1based = truth_pos_1based + offset
 
-Ground truth files should also use genomic coordinates.
+Typical offsets:
 
-Do not use transcript-level coordinates directly for benchmarking against GLORI or eTAM. If the prediction file contains transcript IDs such as `ENST00000000233.10`, first run the scripts in `03_standardization`.
+    -1 0 1
 
-## 01_match_sites_by_offset.py
+Required prediction input columns are usually:
 
-This script matches prediction sites to ground truth sites by genomic position.
+    chr
+    pos_1based
+    strand
+    depth
+    stoich
+    modified_count
+    motif
 
-It is used to find overlapping sites between a prediction table and a ground truth table.
+Required ground-truth input columns are usually:
 
-This step can also test small coordinate offsets, such as:
+    chr
+    pos_1based
+    strand
+    truth stoichiometry column
+    truth depth column
 
-- direct match
-- prediction position plus 1
-- prediction position minus 1
+For eTAM-seq HeLa, use:
 
-This is useful because different tools or references may report the modified base position with a one-base shift.
+    truth stoich column: etam_stoich_mean
+    truth depth column:  etam_depth_mean
 
-The output should be a joined table containing both prediction values and ground truth values for overlapping sites.
+The output matched tables contain generic downstream columns:
 
-## 02_calculate_correlations.py
+    truth_stoich
+    prediction_stoich
+    prediction_depth
 
-This script calculates overall correlation between predicted modification stoichiometry and ground truth stoichiometry.
+These generic columns are used by downstream correlation, stratification, and
+visualization scripts.
 
-Typical metrics include:
+Example eTAM-seq usage:
 
-- number of matched sites
-- Pearson correlation
-- Pearson R squared
-- Spearman correlation
-- Spearman rho squared
+    python scripts/04_benchmarking/01_match_sites_by_offset.py \
+      --prediction-table /path/to/dorado_standardized_genomic_collapsed.tsv \
+      --truth-table /path/to/HeLa_eTAM_FTOm_FTOp_rep1_rep2_rep3_intersection_mean.tsv \
+      --output-dir /path/to/benchmark_vs_etam \
+      --output-prefix PRJEB80229_HeLa_dorado_vs_eTAM \
+      --prediction-name Dorado \
+      --truth-name eTAM-seq \
+      --prediction-stoich-column stoich \
+      --prediction-depth-column depth \
+      --prediction-modified-count-column modified_count \
+      --truth-stoich-column etam_stoich_mean \
+      --truth-depth-column etam_depth_mean \
+      --truth-extra-columns motif,motif_type,source,etam_percent_mean,etam_FDR_max,etam_accessibility_mean \
+      --offsets -1 0 1 \
+      --offset-labels m1 0 p1 \
+      --force
 
-This script should be run after site matching.
+### 02_calculate_correlations.py
 
-## 03_stratify_by_depth.py
+Calculate Pearson R-squared and Spearman rho-squared for one matched table.
 
-This script calculates benchmarking statistics within sequencing-depth bins.
+It can calculate either:
 
-This is useful because low-depth sites usually have noisier stoichiometry estimates.
+- one overall correlation for the whole table
+- grouped correlations using a column such as depth_group
 
-Example depth bins include:
+Example grouped usage:
 
-- `depth > 40`
-- `30 < depth <= 40`
-- `20 < depth <= 30`
-- `10 < depth <= 20`
-- `5 < depth <= 10`
+    python scripts/04_benchmarking/02_calculate_correlations.py \
+      --input matched_depth_groups.tsv \
+      --output matched_depth_correlation_summary.tsv \
+      --x-column truth_stoich \
+      --y-column prediction_stoich \
+      --group-column depth_group \
+      --groups depth_gt40 depth_31_40 depth_21_30 depth_11_20 depth_1_10 \
+      --allow-empty-groups \
+      --force
 
-This step helps evaluate whether a tool performs better at higher-confidence, higher-depth sites.
+### 03_stratify_by_depth.py
+
+Assign matched sites into non-overlapping prediction-depth groups.
+
+Default bin edges:
+
+    10 20 30 40
+
+This creates:
+
+    depth_1_10
+    depth_11_20
+    depth_21_30
+    depth_31_40
+    depth_gt40
+
+Example usage:
+
+    python scripts/04_benchmarking/03_stratify_by_depth.py \
+      --input matched.tsv \
+      --output matched_depth_groups.tsv \
+      --depth-column prediction_depth \
+      --group-column depth_group \
+      --bin-edges 10 20 30 40 \
+      --force
 
 ## Recommended workflow
 
-For each tool:
-
-standardized genomic prediction  
-→ `01_match_sites_by_offset.py`  
-→ `02_calculate_correlations.py`  
-→ `03_stratify_by_depth.py`  
-→ `05_visualization`
-
-## Notes
-
-Benchmarking should be performed only after the prediction files and ground truth files are in compatible genomic coordinate systems.
-
-If a prediction file was generated from transcript-level coordinates, first run:
-
-1. `03_standardization/02_convert_transcript_to_genome.py`
-2. `03_standardization/03_collapse_genomic_sites.py`, if duplicated genomic sites are present
-
-The collapsed genomic result should be preferred for benchmarking when multiple transcript isoforms map to the same genomic site.
+    standardized prediction table
+      ↓
+    01_match_sites_by_offset.py
+      ↓
+    choose best offset
+      ↓
+    03_stratify_by_depth.py
+      ↓
+    02_calculate_correlations.py
+      ↓
+    plot_single.py or plot_total.py

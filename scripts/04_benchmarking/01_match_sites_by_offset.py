@@ -1,344 +1,358 @@
 #!/usr/bin/env python3
-"""Match prediction sites to ground-truth sites under genomic offsets."""
+"""Match standardized prediction sites to a ground-truth table by genomic offset.
+
+This script is ground-truth agnostic. It can be used for GLORI, eTAM-seq,
+m6A-SAC-seq, m6ACE-seq, miCLIP-derived site tables, or any standardized
+site-level truth table with chr + position + strand + stoichiometry columns.
+
+Convention:
+  prediction_pos_1based = truth_pos_1based + offset
+
+Outputs:
+  <output-prefix>_offset_<label>.tsv
+  <output-prefix>_offset_summary.tsv
+"""
 
 from __future__ import annotations
 
 import argparse
-import csv
-import gzip
 import os
-import sqlite3
 import sys
-import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, TextIO, Tuple
+from typing import Iterable
 
-
-MatchKey = Tuple[str, int, str]
+import numpy as np
+import pandas as pd
 
 
 def log(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
 
 
-def now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
-
-
-def open_text(path: str) -> TextIO:
-    if path.endswith(".gz"):
-        return gzip.open(path, "rt", newline="")
-    return open(path, "r", newline="")
-
-
-def offset_label(offset: int) -> str:
-    if offset < 0:
-        return "m%d" % abs(offset)
-    if offset > 0:
-        return "p%d" % offset
-    return "0"
-
-
-def output_paths(prefix: str, offsets: Sequence[int]) -> Dict[int, Path]:
-    return {offset: Path("%s_offset_%s.tsv" % (prefix, offset_label(offset))) for offset in offsets}
-
-
-def summary_path(prefix: str) -> Path:
-    return Path("%s_offset_summary.tsv" % prefix)
-
-
-def atomic_path(path: Path) -> Path:
-    return Path(str(path) + ".tmp.%d" % os.getpid())
-
-
-def require_no_overwrite(paths: Iterable[Path], force: bool) -> None:
-    if force:
-        return
-    existing = [str(path) for path in paths if path.exists()]
-    if existing:
-        raise SystemExit("ERROR: output exists; use --force to overwrite: %s" % ", ".join(existing))
-
-
-def reader_with_lines(path: str):
-    handle = open_text(path)
-    try:
-        header_line = handle.readline()
-        if not header_line:
-            raise SystemExit("ERROR: empty input file: %s" % path)
-        header = header_line.rstrip("\n\r").split("\t")
-        for line_number, line in enumerate(handle, start=2):
-            stripped = line.rstrip("\n\r")
-            if not stripped:
-                yield header, line_number, None
-                continue
-            fields = stripped.split("\t")
-            if len(fields) != len(header):
-                raise SystemExit(
-                    "ERROR: %s line %d: expected %d fields, found %d"
-                    % (path, line_number, len(header), len(fields))
-                )
-            yield header, line_number, dict(zip(header, fields))
-    finally:
-        handle.close()
-
-
-def require_columns(path: str, header: Sequence[str], columns: Iterable[str]) -> None:
-    missing = [column for column in columns if column not in header]
-    if missing:
-        raise SystemExit("ERROR: %s missing required column(s): %s" % (path, ", ".join(missing)))
-
-
-def parse_int(path: str, line_number: int, column: str, value: str, positive: bool, nonnegative: bool = False) -> int:
-    try:
-        parsed = int(value)
-    except ValueError:
-        raise SystemExit("ERROR: %s line %d column %s: must be an integer" % (path, line_number, column))
-    if positive and parsed <= 0:
-        raise SystemExit("ERROR: %s line %d column %s: must be positive" % (path, line_number, column))
-    if nonnegative and parsed < 0:
-        raise SystemExit("ERROR: %s line %d column %s: must be non-negative" % (path, line_number, column))
-    return parsed
-
-
-def parse_float(path: str, line_number: int, column: str, value: str, minimum: float, maximum: float) -> float:
-    try:
-        parsed = float(value)
-    except ValueError:
-        raise SystemExit("ERROR: %s line %d column %s: must be numeric" % (path, line_number, column))
-    if parsed != parsed or parsed < minimum or parsed > maximum:
-        raise SystemExit(
-            "ERROR: %s line %d column %s: must be between %s and %s"
-            % (path, line_number, column, minimum, maximum)
-        )
-    return parsed
-
-
-def load_truth(args: argparse.Namespace) -> Tuple[Dict[MatchKey, Dict[str, str]], int, int]:
-    truth = {}  # type: Dict[MatchKey, Dict[str, str]]
-    blank_lines = 0
-    total = 0
-    first = True
-    for header, line_number, row in reader_with_lines(args.truth):
-        if first:
-            require_columns(
-                args.truth,
-                header,
-                [
-                    args.truth_chromosome_column,
-                    args.truth_position_column,
-                    args.truth_strand_column,
-                    args.truth_depth_column,
-                    args.truth_stoich_column,
-                ],
-            )
-            first = False
-        if row is None:
-            blank_lines += 1
+def unique_join(values: Iterable[object]) -> str:
+    out = []
+    for value in values:
+        if pd.isna(value):
             continue
-        chrom = row[args.truth_chromosome_column]
-        if not chrom:
-            raise SystemExit("ERROR: %s line %d column %s: must be non-empty" % (args.truth, line_number, args.truth_chromosome_column))
-        pos = parse_int(args.truth, line_number, args.truth_position_column, row[args.truth_position_column], True)
-        strand = row[args.truth_strand_column]
-        if strand not in ("+", "-"):
-            raise SystemExit("ERROR: %s line %d column %s: must be + or -" % (args.truth, line_number, args.truth_strand_column))
-        parse_float(args.truth, line_number, args.truth_depth_column, row[args.truth_depth_column], 0.0, float("inf"))
-        parse_float(args.truth, line_number, args.truth_stoich_column, row[args.truth_stoich_column], 0.0, 1.0)
-        key = (chrom, pos, strand)
-        if key in truth:
-            raise SystemExit("ERROR: %s line %d: duplicate truth key %s:%d:%s" % (args.truth, line_number, chrom, pos, strand))
-        truth[key] = row
-        total += 1
-    return truth, total, blank_lines
+        text = str(value).strip()
+        if text == "":
+            continue
+        out.append(text)
+    return ",".join(sorted(set(out)))
 
 
-def validate_prediction(row: Dict[str, str], line_number: int, args: argparse.Namespace) -> Tuple[MatchKey, Dict[str, str]]:
-    chrom = row[args.prediction_chromosome_column]
-    if not chrom:
-        raise SystemExit("ERROR: %s line %d column %s: must be non-empty" % (args.prediction, line_number, args.prediction_chromosome_column))
-    pos = parse_int(args.prediction, line_number, args.prediction_position_column, row[args.prediction_position_column], True)
-    strand = row[args.prediction_strand_column]
-    if strand not in ("+", "-"):
-        raise SystemExit("ERROR: %s line %d column %s: must be + or -" % (args.prediction, line_number, args.prediction_strand_column))
-    depth = parse_int(args.prediction, line_number, args.prediction_depth_column, row[args.prediction_depth_column], True)
-    parse_float(args.prediction, line_number, args.prediction_stoich_column, row[args.prediction_stoich_column], 0.0, 1.0)
-    if args.prediction_modified_count_column in row:
-        modified = parse_int(args.prediction, line_number, args.prediction_modified_count_column, row[args.prediction_modified_count_column], False, True)
-        if modified > depth:
-            raise SystemExit("ERROR: %s line %d column %s: cannot exceed depth" % (args.prediction, line_number, args.prediction_modified_count_column))
-    if args.prediction_transcript_count_column in row:
-        transcript_count = parse_int(args.prediction, line_number, args.prediction_transcript_count_column, row[args.prediction_transcript_count_column], True)
-    else:
-        transcript_count = None
-    if args.prediction_record_count_column in row:
-        record_count = parse_int(args.prediction, line_number, args.prediction_record_count_column, row[args.prediction_record_count_column], True)
-        if transcript_count is not None and record_count < transcript_count:
-            raise SystemExit("ERROR: %s line %d column %s: cannot be smaller than transcript_count" % (args.prediction, line_number, args.prediction_record_count_column))
-    return (chrom, pos, strand), row
+def read_table(path: str, sep: str) -> pd.DataFrame:
+    if not Path(path).exists():
+        raise FileNotFoundError(f"input file does not exist: {path}")
+    return pd.read_csv(path, sep=sep, compression="infer", dtype=str, keep_default_na=False, na_values=[])
 
 
-def write_header(writer: csv.writer) -> None:
-    writer.writerow([
-        "chr", "truth_pos_1based", "prediction_pos_1based", "strand", "offset",
-        "truth_depth", "truth_stoich", "prediction_depth", "prediction_modified_count",
-        "prediction_stoich", "transcript_count", "transcript_record_count",
-        "prediction_source", "truth_source",
-    ])
+def require_columns(df: pd.DataFrame, columns: list[str], label: str) -> None:
+    missing = [col for col in columns if col and col not in df.columns]
+    if missing:
+        raise SystemExit(f"ERROR: {label} missing required columns: {missing}\nExisting columns: {list(df.columns)}")
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def parse_offsets(offsets: list[int], labels: list[str] | None) -> list[tuple[int, str]]:
+    if labels is None:
+        out = []
+        for offset in offsets:
+            if offset < 0:
+                label = f"m{abs(offset)}"
+            elif offset > 0:
+                label = f"p{offset}"
+            else:
+                label = "0"
+            out.append((offset, label))
+        return out
+    if len(offsets) != len(labels):
+        raise SystemExit("ERROR: --offsets and --offset-labels must have the same length")
+    return list(zip(offsets, labels))
+
+
+def safe_numeric(series: pd.Series, label: str) -> pd.Series:
+    values = pd.to_numeric(series, errors="coerce")
+    bad = values.isna() & series.astype(str).str.strip().ne("")
+    if bad.any():
+        log(f"WARNING\tnon_numeric_values\t{label}\t{int(bad.sum())}")
+    return values
+
+
+def corr_stats(df: pd.DataFrame, x_col: str, y_col: str) -> dict[str, object]:
+    sub = df[[x_col, y_col]].copy()
+    sub[x_col] = pd.to_numeric(sub[x_col], errors="coerce")
+    sub[y_col] = pd.to_numeric(sub[y_col], errors="coerce")
+    sub = sub.dropna()
+    n = len(sub)
+
+    if n < 2:
+        return {
+            "n": n,
+            "pearson_r": np.nan,
+            "pearson_r2": np.nan,
+            "spearman_rho": np.nan,
+            "spearman_rho2": np.nan,
+        }
+
+    pearson_r = sub[x_col].corr(sub[y_col], method="pearson")
+    spearman_rho = sub[x_col].rank().corr(sub[y_col].rank(), method="pearson")
+
+    return {
+        "n": n,
+        "pearson_r": pearson_r,
+        "pearson_r2": pearson_r ** 2 if pd.notna(pearson_r) else np.nan,
+        "spearman_rho": spearman_rho,
+        "spearman_rho2": spearman_rho ** 2 if pd.notna(spearman_rho) else np.nan,
+    }
+
+
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--prediction", required=True)
-    parser.add_argument("--truth", required=True)
-    parser.add_argument("--out-prefix", required=True)
-    parser.add_argument("--offsets", nargs="+", type=int, default=[-1, 0, 1])
-    parser.add_argument("--prediction-chromosome-column", default="chr")
+
+    parser.add_argument("--prediction-table", required=True)
+    parser.add_argument("--truth-table", required=True)
+    parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--output-prefix", required=True)
+
+    parser.add_argument("--prediction-name", default="prediction")
+    parser.add_argument("--truth-name", default="truth")
+
+    parser.add_argument("--prediction-chrom-column", default="chr")
     parser.add_argument("--prediction-position-column", default="pos_1based")
     parser.add_argument("--prediction-strand-column", default="strand")
     parser.add_argument("--prediction-depth-column", default="depth")
-    parser.add_argument("--prediction-stoich-column", default="stoich")
     parser.add_argument("--prediction-modified-count-column", default="modified_count")
-    parser.add_argument("--prediction-transcript-count-column", default="transcript_count")
-    parser.add_argument("--prediction-record-count-column", default="transcript_record_count")
-    parser.add_argument("--truth-chromosome-column", default="chr")
+    parser.add_argument("--prediction-stoich-column", default="stoich")
+    parser.add_argument("--prediction-motif-column", default="motif")
+
+    parser.add_argument("--truth-chrom-column", default="chr")
     parser.add_argument("--truth-position-column", default="pos_1based")
     parser.add_argument("--truth-strand-column", default="strand")
-    parser.add_argument("--truth-depth-column", default="depth")
-    parser.add_argument("--truth-stoich-column", default="stoich")
-    parser.add_argument("--prediction-source", default="prediction")
-    parser.add_argument("--truth-source", default="truth")
+    parser.add_argument("--truth-depth-column", default="")
+    parser.add_argument("--truth-stoich-column", required=True)
+    parser.add_argument("--truth-motif-column", default="motif")
+
+    parser.add_argument(
+        "--truth-extra-columns",
+        default="",
+        help="Comma-separated extra truth columns to carry into matched output."
+    )
+    parser.add_argument(
+        "--prediction-extra-columns",
+        default="",
+        help="Comma-separated extra prediction columns to carry into matched output."
+    )
+
+    parser.add_argument("--offsets", nargs="+", type=int, default=[-1, 0, 1])
+    parser.add_argument("--offset-labels", nargs="+", default=None)
+    parser.add_argument("--separator", default="\t")
     parser.add_argument("--force", action="store_true")
-    args = parser.parse_args(argv)
 
-    offsets = sorted(set(args.offsets))
-    paths = output_paths(args.out_prefix, offsets)
-    sum_path = summary_path(args.out_prefix)
-    require_no_overwrite(list(paths.values()) + [sum_path], args.force)
-    for path in list(paths.values()) + [sum_path]:
-        path.parent.mkdir(parents=True, exist_ok=True)
+    return parser.parse_args()
 
-    log("start_time\t%s" % now())
-    log("prediction_path\t%s" % args.prediction)
-    log("truth_path\t%s" % args.truth)
-    log("offsets\t%s" % ",".join(str(o) for o in offsets))
 
-    temp_paths = {offset: atomic_path(path) for offset, path in paths.items()}
-    temp_summary = atomic_path(sum_path)
-    handles = []
-    db_path = str(Path(tempfile.gettempdir()) / ("prediction_keys_%d.sqlite" % os.getpid()))
-    try:
-        truth, truth_total, truth_blank = load_truth(args)
-        log("loaded_truth_site_count\t%d" % truth_total)
-        writers = {}
-        for offset in offsets:
-            handle = open(temp_paths[offset], "w", newline="")
-            handles.append(handle)
-            writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
-            write_header(writer)
-            writers[offset] = writer
+def main() -> int:
+    args = parse_args()
 
-        conn = sqlite3.connect(db_path)
-        conn.execute("CREATE TABLE keys (chr TEXT, pos INTEGER, strand TEXT, UNIQUE(chr, pos, strand))")
-        prediction_total = 0
-        prediction_blank = 0
-        overlap_counts = {offset: 0 for offset in offsets}
-        first = True
-        for header, line_number, row in reader_with_lines(args.prediction):
-            if first:
-                require_columns(
-                    args.prediction,
-                    header,
-                    [
-                        args.prediction_chromosome_column,
-                        args.prediction_position_column,
-                        args.prediction_strand_column,
-                        args.prediction_depth_column,
-                        args.prediction_stoich_column,
-                    ],
-                )
-                first = False
-            if row is None:
-                prediction_blank += 1
-                continue
-            key, row = validate_prediction(row, line_number, args)
-            try:
-                conn.execute("INSERT INTO keys VALUES (?, ?, ?)", key)
-            except sqlite3.IntegrityError:
-                raise SystemExit("ERROR: %s line %d: duplicate prediction key %s:%d:%s" % (args.prediction, line_number, key[0], key[1], key[2]))
-            prediction_total += 1
-            if prediction_total % 5000000 == 0:
-                log("prediction_rows_processed\t%d" % prediction_total)
-            chrom, pred_pos, strand = key
-            for offset in offsets:
-                truth_key = (chrom, pred_pos - offset, strand)
-                truth_row = truth.get(truth_key)
-                if truth_row is None:
-                    continue
-                writers[offset].writerow([
-                    chrom,
-                    str(truth_key[1]),
-                    str(pred_pos),
-                    strand,
-                    str(offset),
-                    truth_row[args.truth_depth_column],
-                    truth_row[args.truth_stoich_column],
-                    row[args.prediction_depth_column],
-                    row.get(args.prediction_modified_count_column, ""),
-                    row[args.prediction_stoich_column],
-                    row.get(args.prediction_transcript_count_column, ""),
-                    row.get(args.prediction_record_count_column, ""),
-                    args.prediction_source,
-                    args.truth_source,
-                ])
-                overlap_counts[offset] += 1
-        conn.close()
-        for handle in handles:
-            handle.close()
+    started = datetime.now().isoformat(timespec="seconds")
+    log(f"start_time\t{started}")
+    log(f"prediction_table\t{args.prediction_table}")
+    log(f"truth_table\t{args.truth_table}")
+    log(f"output_dir\t{args.output_dir}")
+    log(f"output_prefix\t{args.output_prefix}")
 
-        with open(temp_summary, "w", newline="") as handle:
-            writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
-            writer.writerow([
-                "offset", "definition", "overlap_count", "truth_total_sites",
-                "overlap_fraction_of_truth", "prediction_total_sites",
-                "overlap_fraction_of_prediction", "matched_file",
-            ])
-            for offset in offsets:
-                count = overlap_counts[offset]
-                writer.writerow([
-                    str(offset),
-                    "prediction_pos=truth_pos+offset",
-                    str(count),
-                    str(truth_total),
-                    format(float(count) / truth_total if truth_total else 0.0, ".10g"),
-                    str(prediction_total),
-                    format(float(count) / prediction_total if prediction_total else 0.0, ".10g"),
-                    str(paths[offset]),
-                ])
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-        for offset, path in paths.items():
-            os.replace(temp_paths[offset], path)
-        os.replace(temp_summary, sum_path)
-        log("total_prediction_site_count\t%d" % prediction_total)
-        for offset in offsets:
-            log("overlap_count_offset_%s\t%d" % (offset_label(offset), overlap_counts[offset]))
-        log("prediction_blank_lines\t%d" % prediction_blank)
-        log("truth_blank_lines\t%d" % truth_blank)
-        log("summary_path\t%s" % sum_path)
-        log("finish_time\t%s" % now())
-        return 0
-    finally:
-        for handle in handles:
-            try:
-                handle.close()
-            except Exception:
-                pass
-        for path in list(temp_paths.values()) + [temp_summary, Path(db_path)]:
-            try:
-                if Path(path).exists():
-                    Path(path).unlink()
-            except OSError:
-                pass
+    offsets = parse_offsets(args.offsets, args.offset_labels)
+
+    pred = read_table(args.prediction_table, args.separator)
+    truth = read_table(args.truth_table, args.separator)
+
+    require_columns(
+        pred,
+        [
+            args.prediction_chrom_column,
+            args.prediction_position_column,
+            args.prediction_strand_column,
+            args.prediction_depth_column,
+            args.prediction_stoich_column,
+        ],
+        "prediction table",
+    )
+    require_columns(
+        truth,
+        [
+            args.truth_chrom_column,
+            args.truth_position_column,
+            args.truth_strand_column,
+            args.truth_stoich_column,
+        ] + ([args.truth_depth_column] if args.truth_depth_column else []),
+        "truth table",
+    )
+
+    has_pred_modified = args.prediction_modified_count_column in pred.columns
+    has_pred_motif = args.prediction_motif_column in pred.columns
+    has_truth_depth = bool(args.truth_depth_column) and args.truth_depth_column in truth.columns
+    has_truth_motif = bool(args.truth_motif_column) and args.truth_motif_column in truth.columns
+
+    pred_extra = [c.strip() for c in args.prediction_extra_columns.split(",") if c.strip() and c.strip() in pred.columns]
+    truth_extra = [c.strip() for c in args.truth_extra_columns.split(",") if c.strip() and c.strip() in truth.columns]
+
+    pred2 = pd.DataFrame(
+        {
+            "chr": pred[args.prediction_chrom_column].astype(str),
+            "prediction_pos_1based": safe_numeric(pred[args.prediction_position_column], "prediction position"),
+            "strand": pred[args.prediction_strand_column].astype(str),
+            "prediction_depth": safe_numeric(pred[args.prediction_depth_column], "prediction depth"),
+            "prediction_stoich": safe_numeric(pred[args.prediction_stoich_column], "prediction stoich"),
+        }
+    )
+
+    if has_pred_modified:
+        pred2["prediction_modified_count"] = safe_numeric(pred[args.prediction_modified_count_column], "prediction modified count")
+    else:
+        pred2["prediction_modified_count"] = pred2["prediction_depth"] * pred2["prediction_stoich"]
+
+    if has_pred_motif:
+        pred2["prediction_motif"] = pred[args.prediction_motif_column].astype(str)
+    else:
+        pred2["prediction_motif"] = "NA"
+
+    for col in pred_extra:
+        pred2[f"prediction_{col}"] = pred[col].astype(str)
+
+    truth2 = pd.DataFrame(
+        {
+            "chr": truth[args.truth_chrom_column].astype(str),
+            "truth_pos_1based": safe_numeric(truth[args.truth_position_column], "truth position"),
+            "strand": truth[args.truth_strand_column].astype(str),
+            "truth_stoich": safe_numeric(truth[args.truth_stoich_column], "truth stoich"),
+        }
+    )
+
+    if has_truth_depth:
+        truth2["truth_depth"] = safe_numeric(truth[args.truth_depth_column], "truth depth")
+    else:
+        truth2["truth_depth"] = np.nan
+
+    if has_truth_motif:
+        truth2["truth_motif"] = truth[args.truth_motif_column].astype(str)
+    else:
+        truth2["truth_motif"] = "NA"
+
+    for col in truth_extra:
+        truth2[f"truth_{col}"] = truth[col].astype(str)
+
+    pred2 = pred2.dropna(
+        subset=["chr", "prediction_pos_1based", "strand", "prediction_depth", "prediction_stoich"]
+    ).copy()
+    truth2 = truth2.dropna(
+        subset=["chr", "truth_pos_1based", "strand", "truth_stoich"]
+    ).copy()
+
+    pred2["prediction_pos_1based"] = pred2["prediction_pos_1based"].astype(int)
+    truth2["truth_pos_1based"] = truth2["truth_pos_1based"].astype(int)
+
+    pred_agg = {
+        "prediction_depth": ("prediction_depth", "sum"),
+        "prediction_modified_count": ("prediction_modified_count", "sum"),
+        "prediction_stoich": ("prediction_stoich", "mean"),
+        "prediction_motif": ("prediction_motif", unique_join),
+    }
+    for col in pred_extra:
+        pred_agg[f"prediction_{col}"] = (f"prediction_{col}", unique_join)
+
+    pred2 = (
+        pred2.groupby(["chr", "prediction_pos_1based", "strand"], as_index=False)
+        .agg(**pred_agg)
+    )
+    mask = pred2["prediction_depth"] > 0
+    pred2.loc[mask, "prediction_stoich"] = (
+        pred2.loc[mask, "prediction_modified_count"] / pred2.loc[mask, "prediction_depth"]
+    )
+
+    truth_agg = {
+        "truth_depth": ("truth_depth", "mean"),
+        "truth_stoich": ("truth_stoich", "mean"),
+        "truth_motif": ("truth_motif", unique_join),
+    }
+    for col in truth_extra:
+        truth_agg[f"truth_{col}"] = (f"truth_{col}", unique_join)
+
+    truth2 = (
+        truth2.groupby(["chr", "truth_pos_1based", "strand"], as_index=False)
+        .agg(**truth_agg)
+    )
+
+    summary_rows = []
+
+    for offset, label in offsets:
+        out_path = output_dir / f"{args.output_prefix}_offset_{label}.tsv"
+        if out_path.exists() and not args.force:
+            raise SystemExit(f"ERROR: output exists; use --force to overwrite: {out_path}")
+
+        pred_shift = pred2.copy()
+        pred_shift["truth_pos_1based"] = pred_shift["prediction_pos_1based"] - offset
+
+        matched = truth2.merge(
+            pred_shift,
+            on=["chr", "truth_pos_1based", "strand"],
+            how="inner",
+        )
+
+        matched["offset"] = offset
+        matched["prediction_name"] = args.prediction_name
+        matched["truth_name"] = args.truth_name
+
+        preferred = [
+            "chr",
+            "truth_pos_1based",
+            "prediction_pos_1based",
+            "strand",
+            "offset",
+            "truth_name",
+            "prediction_name",
+            "truth_depth",
+            "truth_stoich",
+            "prediction_depth",
+            "prediction_modified_count",
+            "prediction_stoich",
+            "truth_motif",
+            "prediction_motif",
+        ]
+        remaining = [c for c in matched.columns if c not in preferred]
+        matched = matched[preferred + remaining]
+
+        matched = matched.sort_values(["chr", "truth_pos_1based", "strand"], kind="mergesort")
+        matched.to_csv(out_path, sep=args.separator, index=False)
+
+        stats = corr_stats(matched, "truth_stoich", "prediction_stoich")
+        summary_rows.append(
+            {
+                "offset": offset,
+                "offset_label": label,
+                "overlap_n": stats["n"],
+                "pearson_r": stats["pearson_r"],
+                "pearson_r2": stats["pearson_r2"],
+                "spearman_rho": stats["spearman_rho"],
+                "spearman_rho2": stats["spearman_rho2"],
+                "matched_table": str(out_path),
+            }
+        )
+
+        log(f"offset\t{offset}\tlabel\t{label}\toverlap\t{stats['n']}\toutput\t{out_path}")
+
+    summary = pd.DataFrame(summary_rows)
+    summary_path = output_dir / f"{args.output_prefix}_offset_summary.tsv"
+    if summary_path.exists() and not args.force:
+        raise SystemExit(f"ERROR: output exists; use --force to overwrite: {summary_path}")
+    summary.to_csv(summary_path, sep=args.separator, index=False)
+
+    log(f"summary\t{summary_path}")
+    log(f"finish_time\t{datetime.now().isoformat(timespec='seconds')}")
+    return 0
 
 
 if __name__ == "__main__":

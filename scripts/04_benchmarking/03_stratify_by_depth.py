@@ -41,7 +41,7 @@ def labels_and_rules(edges: Sequence[int]) -> List[Tuple[str, str, int, Optional
     sorted_edges = sorted(edges)
     if sorted_edges[0] < 1:
         raise SystemExit("ERROR: bin edges must be positive integers")
-    groups = []  # type: List[Tuple[str, str, int, Optional[int]]]
+    groups = []
     start = 1
     for edge in sorted_edges:
         if edge < start:
@@ -77,12 +77,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         existing = [str(path) for path in (output, summary) if path.exists()]
         if existing:
             raise SystemExit("ERROR: output exists; use --force to overwrite: %s" % ", ".join(existing))
+
     output.parent.mkdir(parents=True, exist_ok=True)
     groups = labels_and_rules(args.bin_edges)
+
     stats = {
         label: {"count": 0, "min": None, "max": None, "rule": rule}
         for label, rule, _start, _end in groups
-    }  # type: Dict[str, Dict[str, object]]
+    }
+
     total = 0
     tmp_output = atomic_path(output)
     tmp_summary = atomic_path(summary)
@@ -102,20 +105,31 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 raise SystemExit("ERROR: missing depth column: %s" % args.depth_column)
             if args.group_column in reader.fieldnames:
                 raise SystemExit("ERROR: group column already exists: %s" % args.group_column)
+
             fieldnames = list(reader.fieldnames) + [args.group_column]
             writer = csv.DictWriter(out_handle, fieldnames=fieldnames, delimiter="\t", lineterminator="\n")
             writer.writeheader()
+
             for line_number, row in enumerate(reader, start=2):
                 try:
-                    depth = int(row[args.depth_column])
+                    depth = int(float(row[args.depth_column]))
                 except ValueError:
-                    raise SystemExit("ERROR: %s line %d column %s: depth must be an integer" % (args.input, line_number, args.depth_column))
+                    raise SystemExit(
+                        "ERROR: %s line %d column %s: depth must be numeric"
+                        % (args.input, line_number, args.depth_column)
+                    )
+
                 if depth <= 0:
-                    raise SystemExit("ERROR: %s line %d column %s: depth must be positive" % (args.input, line_number, args.depth_column))
+                    raise SystemExit(
+                        "ERROR: %s line %d column %s: depth must be positive"
+                        % (args.input, line_number, args.depth_column)
+                    )
+
                 label = assign_group(depth, groups)
                 row[args.group_column] = label
                 writer.writerow(row)
                 total += 1
+
                 item = stats[label]
                 item["count"] = int(item["count"]) + 1
                 item["min"] = depth if item["min"] is None else min(int(item["min"]), depth)
@@ -129,23 +143,29 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 item = stats[label]
                 count = int(item["count"])
                 check_total += count
-                writer.writerow([
-                    label,
-                    rule,
-                    str(count),
-                    format(float(count) / total if total else 0.0, ".10g"),
-                    "" if item["min"] is None else str(item["min"]),
-                    "" if item["max"] is None else str(item["max"]),
-                ])
+                writer.writerow(
+                    [
+                        label,
+                        rule,
+                        str(count),
+                        format(float(count) / total if total else 0.0, ".10g"),
+                        "" if item["min"] is None else str(item["min"]),
+                        "" if item["max"] is None else str(item["max"]),
+                    ]
+                )
+
         if check_total != total:
             raise SystemExit("ERROR: depth-group counts do not sum to total input rows")
+
         os.replace(tmp_output, output)
         os.replace(tmp_summary, summary)
+
         log("total_input_site_count\t%d" % total)
         for label, _rule, _start, _end in groups:
             log("%s\t%d" % (label, int(stats[label]["count"])))
         log("finish_time\t%s" % now())
         return 0
+
     finally:
         for path in (tmp_output, tmp_summary):
             try:
