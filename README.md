@@ -17,7 +17,7 @@ Do not label GLORI as the HeLa ground truth, and do not label eTAM-seq as the
 HEK293T ground truth.
 
 ## Benchmark Overview
-
+### PRJEB80229 HEK293T RNA004 benchmark
 The figure below summarizes the site-level stoichiometry comparison between four RNA modification callers and GLORI ground truth on the PRJEB80229 HEK293T RNA004 direct RNA dataset.
 
 <p align="center">
@@ -25,7 +25,15 @@ The figure below summarizes the site-level stoichiometry comparison between four
 </p>
 
 Full-resolution figure: [PRJEB80229_HEK293T_total_benchmark.pdf](results/PRJEB80229_HEK293T_total_benchmark.pdf)
+### PRJEB106788 HEK293T RNA004 benchmark
 
+The figure below summarizes the site-level stoichiometry comparison between four RNA modification callers and GLORI ground truth on the PRJEB106788 HEK293T RNA004 direct RNA dataset.
+
+<p align="center">
+  <img src="results/PRJEB106788_HEK293T_total_benchmark.png" width="900">
+</p>
+
+Full-resolution figure: [PRJEB106788_HEK293T_total_benchmark.pdf](results/PRJEB106788_HEK293T_total_benchmark.pdf)
 ## Data Flow by Tool
 
 ### Dorado
