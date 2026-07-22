@@ -13,14 +13,14 @@ GRCh38 genomic coordinates.
 Current ground-truth input pattern:
 
 ```text
-metadata/ground_truth_datasets/ground_truth.tsv
+metadata/ground_truth_datasets/HEK293T_GLORI_rep1_rep2_intersection_mean.tsv
 ```
 
 Processing order:
 
 ```text
 Uploaded final HEK293T GLORI ground-truth table
-  -> scripts/08_ground_truth/glori/prepare_glori_sites.py
+  -> scripts/02_ground_truth/glori/prepare_glori_sites.py
 validated prepared genomic site table
   -> standardization / benchmarking
 ```
@@ -38,14 +38,14 @@ label GLORI as the HeLa ground truth.
 Current ground-truth input pattern:
 
 ```text
-metadata/ground_truth_datasets/ground_truth.tsv
+metadata/ground_truth_datasets/HeLa_eTAM_FTOm_FTOp_rep1_rep2_rep3_intersection_mean.tsv
 ```
 
 Processing order:
 
 ```text
 Uploaded final HeLa eTAM-seq ground-truth table
-  -> scripts/08_ground_truth/etam_seq/prepare_etam_sites.py
+  -> scripts/02_ground_truth/etam_seq/prepare_etam_sites.py
 validated prepared genomic site table
   -> standardization / benchmarking
 ```

@@ -183,14 +183,19 @@ Unresolved items are marked `TO VERIFY` rather than guessed.
 - Interpretation: intersection of two HEK293T GLORI replicates with mean depth
   and mean stoichiometry.
 
-### HeLa / eTAM
+### HeLa / eTAM-seq
 
-Future extension: HeLa benchmark using eTAM-derived ground truth.
-Citation and accession: TO VERIFY when the HeLa analysis is added.
+The repository contains a HeLa eTAM-seq replicate-intersection ground-truth table
+under `metadata/ground_truth_datasets/` and selected HeLa benchmark figures
+under `results/`.
+
+- Citation: TO VERIFY official eTAM-seq publication.
+- Dataset accession: TO VERIFY source accession for the eTAM-seq data used to
+  construct the local ground-truth table.
 
 ## Unresolved Citations
 
 - TO VERIFY: original DeepRM m6A method publication and official repository.
-- TO VERIFY: eTAM citation and accession when the HeLa analysis is added.
+- TO VERIFY: official eTAM-seq publication and source dataset accession.
 - TO VERIFY: whether a separate Dorado model documentation citation is needed
   for `rna004_130bps_sup@v5.0.0` beyond the official Dorado repository/docs.

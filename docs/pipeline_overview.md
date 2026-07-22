@@ -1,8 +1,7 @@
 # Pipeline Overview
 
-The workflow was adapted from `docs/source/pipeline.docx`. Existing repository
-scripts were inspected; only scaffold placeholders were present, so no working
-script was renamed or archived.
+The workflow was adapted from `docs/source/pipeline.docx` and synchronized with
+the current script layout under `scripts/`.
 
 ## Benchmark Scope
 
@@ -20,7 +19,7 @@ Cell-line comparisons:
 
 ## Shared Stages
 
-1. Prepare local configuration from `configs/*.example.env`.
+1. Set the local environment variables required by the selected shell wrappers.
 2. Confirm references and coordinate conventions.
 3. Run basecalling/alignment or register existing compatible BAM/FASTQ files.
 4. Run tool-specific m6A detection workflows.

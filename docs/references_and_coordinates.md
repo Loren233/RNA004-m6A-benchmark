@@ -45,7 +45,7 @@ tables.
 
 Dorado, m6Anet, and possibly DeepRM can initially produce transcript-coordinate
 site tables when reads are aligned to the cleaned GENCODE transcript FASTA. The
-generic converter at `scripts/09_standardization/convert_transcript_to_genome.py`
+generic converter at `scripts/03_standardization/02_convert_transcript_to_genome.py`
 uses GENCODE v49 exon annotations from `gencode.v49.annotation.gtf` to convert
 transcript positions into genomic coordinates before site-table standardization
 and GLORI comparison.

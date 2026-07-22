@@ -8,11 +8,12 @@ Planned steps:
 1. Register verified HEK293T nanopore samples in `metadata/nanopore_datasets.tsv`.
 2. Use the verified GLORI ground-truth table, represented generically as
    `metadata/ground_truth_datasets/ground_truth.tsv`.
-3. Configure placeholder-free local paths in an untracked `configs/paths.sh`.
+3. Set the local environment variables required by the selected shell wrappers.
 4. Run basecalling, alignment, BAM quality control, and m6A detection tools.
-5. Prepare GLORI sites with `scripts/08_ground_truth/glori/prepare_glori_sites.py`.
+5. Prepare GLORI sites with `scripts/02_ground_truth/glori/prepare_glori_sites.py`.
 6. Standardize site tables.
 7. Match nanopore and GLORI sites using explicit coordinate-offset rules.
 8. Calculate depth-stratified correlations and generate figures.
 
-No completed HEK293T GLORI results are included yet.
+Selected completed HEK293T GLORI benchmark figures are listed in
+`results/README.md`.

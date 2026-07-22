@@ -28,14 +28,15 @@ convert again.
 
 When Dorado is aligned to the cleaned GENCODE transcript FASTA, the site-level
 table column named `chr` contains transcript IDs such as `ENST00000832841.1`.
-Use `scripts/dorado/dorado_04_convert_tx_to_genome.sh` to call the generic
-converter before genomic standardization. The wrapper maps `chr` to
-`transcript_id` and uses `start_0based` as the 0-based transcript coordinate.
+No Dorado-specific transcript-to-genome wrapper is present in the current
+repository. If Dorado was aligned to transcript coordinates, use the generic
+converter at `scripts/03_standardization/02_convert_transcript_to_genome.py`
+after confirming the transcript ID and coordinate columns for that run.
 
 ## Site-Table Standardization
 
 Production Dorado standardization is implemented in
-`scripts/09_standardization/standardize_site_tables.py dorado`.
+`scripts/03_standardization/01_standardize_site_tables.py dorado`.
 
 Workflow:
 
@@ -58,7 +59,7 @@ INPUT=/path/to/dorado_sitelevel_genomic.tsv
 OUTPUT=/path/to/prediction_standardized.tsv
 TMPDIR=/path/to/tmp_standardize
 
-python scripts/09_standardization/standardize_site_tables.py dorado \
+python scripts/03_standardization/01_standardize_site_tables.py dorado \
     --input "$INPUT" \
     --output "$OUTPUT" \
     --tmp-dir "$TMPDIR" \
