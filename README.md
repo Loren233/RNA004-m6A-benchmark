@@ -213,11 +213,4 @@ records listed in `docs/citations.md`.
 Expected tools include Dorado, SAMtools, Modkit, f5c, blue-crab, DeepRM,
 m6Anet, SingleMod, bedtools, Python, and shell utilities. Environment
 definitions are stored under `envs/`. Verified versions and unresolved citation
-status are recorded in `metadata/software_versions.tsv`; do not invent versions
-or citations.
-
-## Data Policy
-
-Large data files and generated intermediate outputs must not be committed to
-Git. Selected final benchmark figures are allowlisted in `.gitignore`; all other
-large or temporary files under `results/` remain ignored by default.
+status are recorded in `metadata/software_versions.tsv`.
