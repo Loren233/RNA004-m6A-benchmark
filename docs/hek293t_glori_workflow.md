@@ -1,19 +1,13 @@
 # HEK293T GLORI Workflow
 
-This is a planned workflow document for benchmarking HEK293T RNA004 nanopore
-m6A calls against GLORI.
+HEK293T RNA004 predictions from the selected tools are standardized, converted
+to genomic coordinates when required, and matched to
+`metadata/ground_truth_datasets/HEK293T_GLORI_rep1_rep2_intersection_mean.tsv`.
+The ground-truth table is validated with
+`scripts/02_ground_truth/glori/prepare_glori_sites.py`; site matching, depth
+stratification, correlation calculation, and visualization use
+`scripts/04_benchmarking/` and `scripts/05_visualization/`.
 
-Planned steps:
-
-1. Register verified HEK293T nanopore samples in `metadata/nanopore_datasets.tsv`.
-2. Use the verified GLORI ground-truth table, represented generically as
-   `metadata/ground_truth_datasets/ground_truth.tsv`.
-3. Set the local environment variables required by the selected shell wrappers.
-4. Run basecalling, alignment, BAM quality control, and m6A detection tools.
-5. Prepare GLORI sites with `scripts/02_ground_truth/glori/prepare_glori_sites.py`.
-6. Standardize site tables.
-7. Match nanopore and GLORI sites using explicit coordinate-offset rules.
-8. Calculate depth-stratified correlations and generate figures.
-
-Selected completed HEK293T GLORI benchmark figures are listed in
-`results/README.md`.
+The table is derived from GSE210563 samples GSM6432590 and GSM6432591. Citation
+and sample provenance are recorded in `docs/citations.md`. Completed HEK293T
+figures are listed in `results/README.md`.

@@ -30,6 +30,3 @@ Cell-line comparisons:
 7. Match predictions to cell-line-specific ground truth.
 8. Stratify by depth and calculate correlations.
 9. Generate figures.
-
-No basecalling, eventalign, model inference, Slurm job, software installation,
-or large file conversion should be run during repository organization.

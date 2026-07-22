@@ -1,78 +1,32 @@
 # Ground Truths
 
-Ground-truth processing is cell-line specific.
+## HEK293T GLORI
 
-## HEK293/HEK293T
-
-Primary benchmark: GLORI.
-
-HEK293/HEK293T nanopore predictions should be compared primarily with GLORI
-after both prediction and ground-truth tables are represented in compatible
-GRCh38 genomic coordinates.
-
-Current ground-truth input pattern:
-
-```text
-metadata/ground_truth_datasets/HEK293T_GLORI_rep1_rep2_intersection_mean.tsv
-```
-
-Processing order:
-
-```text
-Uploaded final HEK293T GLORI ground-truth table
-  -> scripts/02_ground_truth/glori/prepare_glori_sites.py
-validated prepared genomic site table
-  -> standardization / benchmarking
-```
-
-The input table is already a genomic replicate-intersection ground truth and
-should not undergo transcript-to-genome conversion.
-
-## HeLa
-
-Primary benchmark: eTAM-seq.
-
-HeLa nanopore predictions should be compared primarily with eTAM-seq. Do not
-label GLORI as the HeLa ground truth.
-
-Current ground-truth input pattern:
-
-```text
-metadata/ground_truth_datasets/HeLa_eTAM_FTOm_FTOp_rep1_rep2_rep3_intersection_mean.tsv
-```
-
-Processing order:
-
-```text
-Uploaded final HeLa eTAM-seq ground-truth table
-  -> scripts/02_ground_truth/etam_seq/prepare_etam_sites.py
-validated prepared genomic site table
-  -> standardization / benchmarking
-```
-
-The input table is already a genomic replicate-intersection ground truth and
-should not undergo transcript-to-genome conversion.
-
-## Comparison Interface
-
-Use separate preprocessing scripts or parameterized logic that explicitly names
-the ground-truth type:
+HEK293T predictions are benchmarked against
+`metadata/ground_truth_datasets/HEK293T_GLORI_rep1_rep2_intersection_mean.tsv`.
+The genomic table is the intersection of GSM6432590 and GSM6432591 from
+GSE210563, with mean depth and mean stoichiometry. Validate it with:
 
 ```bash
-compare_ground_truth.sh \
-  --prediction prediction_genomic.tsv \
-  --ground-truth ground_truth.tsv \
-  --ground-truth-type GLORI \
-  --cell-line HEK293T
+python scripts/02_ground_truth/glori/prepare_glori_sites.py \
+    --input metadata/ground_truth_datasets/HEK293T_GLORI_rep1_rep2_intersection_mean.tsv \
+    --output /path/to/HEK293T_GLORI_prepared.tsv
 ```
+
+## HeLa eTAM-seq
+
+HeLa predictions are benchmarked against
+`metadata/ground_truth_datasets/HeLa_eTAM_FTOm_FTOp_rep1_rep2_rep3_intersection_mean.tsv`.
+This genomic table was derived locally from GSE211303 HeLa poly(A) WT FTO- and
+FTO+ rep1-rep3 results. GSE211303 is the eTAM-seq SubSeries within GSE201064;
+its BioProject is PRJNA869740. Validate it with:
 
 ```bash
-compare_ground_truth.sh \
-  --prediction prediction_genomic.tsv \
-  --ground-truth ground_truth.tsv \
-  --ground-truth-type eTAM \
-  --cell-line HeLa
+python scripts/02_ground_truth/etam_seq/prepare_etam_sites.py \
+    --input metadata/ground_truth_datasets/HeLa_eTAM_FTOm_FTOp_rep1_rep2_rep3_intersection_mean.tsv \
+    --output /path/to/HeLa_eTAM_prepared.tsv
 ```
 
-Do not assume GLORI and eTAM-seq column names are identical. Inspect and
-document their preprocessing separately before unifying comparison code.
+Both curated inputs already use genomic coordinates and do not require
+transcript-to-genome conversion. Full method and accession citations are in
+`docs/citations.md`.

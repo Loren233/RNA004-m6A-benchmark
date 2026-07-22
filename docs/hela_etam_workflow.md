@@ -1,20 +1,13 @@
 # HeLa eTAM-seq Workflow
 
-This is a planned workflow document for benchmarking HeLa RNA004 nanopore m6A
-calls against eTAM-seq.
+HeLa RNA004 predictions from the selected tools are standardized, converted to
+genomic coordinates when required, and matched to
+`metadata/ground_truth_datasets/HeLa_eTAM_FTOm_FTOp_rep1_rep2_rep3_intersection_mean.tsv`.
+The ground-truth table is validated with
+`scripts/02_ground_truth/etam_seq/prepare_etam_sites.py`; site matching,
+depth stratification, correlation calculation, and visualization use
+`scripts/04_benchmarking/` and `scripts/05_visualization/`.
 
-Planned steps:
-
-1. Register verified HeLa nanopore samples in `metadata/nanopore_datasets.tsv`.
-2. Use the verified eTAM-seq ground-truth table, represented generically as
-   `metadata/ground_truth_datasets/ground_truth.tsv`.
-3. Set the local environment variables required by the selected shell wrappers.
-4. Run basecalling, alignment, BAM quality control, and m6A detection tools.
-5. Prepare eTAM-seq sites with
-   `scripts/02_ground_truth/etam_seq/prepare_etam_sites.py`.
-6. Standardize site tables.
-7. Match nanopore and eTAM-seq sites using explicit coordinate-offset rules.
-8. Calculate depth-stratified correlations and generate figures.
-
-The selected completed HeLa eTAM-seq benchmark figure is listed in
-`results/README.md`.
+The table is derived from GSE211303 HeLa poly(A) WT FTO-/FTO+ rep1-rep3
+results. Citation and sample provenance are recorded in `docs/citations.md`.
+The completed HeLa benchmark figure is listed in `results/README.md`.

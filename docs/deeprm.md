@@ -1,54 +1,18 @@
 # DeepRM Workflow
 
-Planned source flow:
+The DeepRM route uses three wrappers under `scripts/01_deeprm/`:
 
 ```text
 POD5 + compatible aligned BAM
-  -> deeprm call prep
-  -> deeprm call run
-  -> read-level predictions
-  -> site-level aggregation
-  -> transcript-to-genome conversion when required
-  -> GLORI or eTAM-seq comparison
+  -> deeprm_01_call_prep.sh
+  -> deeprm_02_call_run.sh
+  -> deeprm_03_make_sitelevel_table.sh
+  -> DeepRM transcript-level site table
 ```
 
-The model path should be supplied with `DEEPRM_MODEL_FILE`. The source document
-included a personal installation path; this repository replaces it with a
-portable variable and does not commit that path.
-
-DeepRM inference is a GPU task according to the current command template.
-
-The current DeepRM route contains three shell wrappers under
-`scripts/01_deeprm/`:
-
-- `deeprm_01_call_prep.sh`
-- `deeprm_02_call_run.sh`
-- `deeprm_03_make_sitelevel_table.sh`
-
-`deeprm_03_make_sitelevel_table.sh` writes a transcript-level site table with
-these columns:
-
-```text
-transcript_id
-pos_1based
-strand
-depth
-mod_count
-stoich
-percent_modified
-modified_base
-score
-bed_start_0based
-bed_end
-canonical_count
-other_mod_count
-delete_count
-fail_count
-diff_count
-nocall_count
-```
-
-The current standardizer supports DeepRM through:
+The site-level wrapper writes `transcript_id`, `pos_1based`, `strand`, `depth`,
+`mod_count`, `stoich`, `percent_modified`, `modified_base`, `score`, and the
+remaining bedMethyl count fields. Standardize it with:
 
 ```bash
 python scripts/03_standardization/01_standardize_site_tables.py deeprm \
@@ -56,8 +20,9 @@ python scripts/03_standardization/01_standardize_site_tables.py deeprm \
     --output /path/to/deeprm_standardized_transcript.tsv
 ```
 
-If the standardized DeepRM table remains transcript-coordinate based, convert it
-with the generic converter after confirming the GTF path:
+The standardized output contains `transcript_id` and
+`transcript_pos_1based`. DeepRM has no separate transcript-to-genome wrapper;
+use the generic converter and its column-mapping options:
 
 ```bash
 python scripts/03_standardization/02_convert_transcript_to_genome.py \
@@ -68,3 +33,8 @@ python scripts/03_standardization/02_convert_transcript_to_genome.py \
     --position-column transcript_pos_1based \
     --position-base 1
 ```
+
+The converter derives genomic `strand` from the GTF and preserves the
+non-coordinate DeepRM fields, including stoichiometry and depth; those fields
+do not require separate CLI mappings. `DEEPRM_MODEL_FILE` supplies the model
+path to the calling wrappers.
