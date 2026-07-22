@@ -17,22 +17,6 @@ Supported cell-line benchmarks:
 Do not label GLORI as the HeLa ground truth, and do not label eTAM-seq as the
 HEK293T ground truth.
 
-## Current Repository Status
-
-This repository currently contains shell workflow wrappers, conda environment
-definitions under `envs/`, curated metadata tables, ground-truth preparation
-scripts, standardization scripts, benchmarking scripts, visualization scripts,
-and selected final benchmark figures under `results/`.
-
-Large raw and intermediate data files are not stored in Git. This includes POD5,
-BLOW5/SLOW5, FASTQ, BAM/BAI, eventalign files, model weights, large TSV/CSV/BED
-outputs, logs, and scratch directories. A full raw-data rerun requires local or
-HPC path configuration through the environment variables consumed by the shell
-wrappers. This repository is not a fully closed, download-and-run archive of all
-original data processing; it provides reusable workflow templates,
-standardization, benchmarking, visualization code, curated metadata, and
-representative results.
-
 ## Selected Benchmark Results
 
 The figures below are representative final benchmark outputs, not the complete
