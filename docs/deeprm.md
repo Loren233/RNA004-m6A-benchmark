@@ -68,6 +68,3 @@ python scripts/03_standardization/02_convert_transcript_to_genome.py \
     --position-column transcript_pos_1based \
     --position-base 1
 ```
-
-No DeepRM-specific transcript-to-genome wrapper is present in the current
-repository.
