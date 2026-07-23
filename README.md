@@ -32,7 +32,7 @@ Tool-specific commands and inputs are described in
 
 | Cell line | RNA004 benchmark datasets shown here | Ground truth |
 |---|---|---|
-| HeLa | PRJEB80229 | eTAM-seq, derived locally from GSE211303 HeLa poly(A) WT FTO-/FTO+ replicates |
+| HeLa | PRJEB80229; PRJEB106788 | eTAM-seq, derived locally from GSE211303 HeLa poly(A) WT FTO-/FTO+ replicates |
 | HEK293T | PRJEB80229; PRJEB106788 | GLORI, GSE210563 GSM6432590 and GSM6432591 |
 
 The curated genomic tables are
