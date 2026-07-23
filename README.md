@@ -32,7 +32,7 @@ Tool-specific commands and inputs are described in
 
 | Cell line | RNA004 benchmark datasets shown here | Ground truth |
 |---|---|---|
-| HeLa | PRJEB80229 | eTAM-seq, derived locally from GSE211303 HeLa poly(A) WT FTO-/FTO+ replicates |
+| HeLa | PRJEB80229; PRJEB106788 | eTAM-seq, derived locally from GSE211303 HeLa poly(A) WT FTO-/FTO+ replicates |
 | HEK293T | PRJEB80229; PRJEB106788 | GLORI, GSE210563 GSM6432590 and GSM6432591 |
 
 The curated genomic tables are
@@ -63,6 +63,28 @@ The same four-tool comparison against GLORI across read-depth strata.
 </p>
 
 [PDF](results/PRJEB80229_HEK293T_total_benchmark.pdf)
+
+### PRJEB106788 HEK293T
+
+Dorado, m6Anet, SingleMod, and DeepRM site-level stoichiometry compared with
+GLORI across read-depth strata.
+
+<p align="center">
+  <img src="results/PRJEB106788_HEK293T_total_benchmark.png" width="900">
+</p>
+
+[PDF](results/PRJEB106788_HEK293T_total_benchmark.pdf)
+
+### PRJEB106788 HeLa
+
+Dorado, m6Anet, SingleMod, and DeepRM site-level stoichiometry compared with
+eTAM-seq across read-depth strata.
+
+<p align="center">
+  <img src="results/PRJEB106788_HeLa_total_benchmark.png" width="900">
+</p>
+
+[PDF](results/PRJEB106788_HeLa_total_benchmark.pdf)
 
 Additional public final figures are listed in
 [`results/README.md`](results/README.md).
