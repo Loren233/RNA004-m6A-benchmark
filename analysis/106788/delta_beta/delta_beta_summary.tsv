@@ -1,0 +1,5 @@
+project	tool	hek_input_rows	hek_valid_rows	hela_input_rows	hela_valid_rows	matched_sites	delta_beta_gt_0_HEK_higher	delta_beta_lt_0_HeLa_higher	delta_beta_equal_0	matched_min_depth_ge_10	matched_min_depth_ge_20	matched_min_depth_ge_40	mean_delta_beta	mean_absolute_delta_beta	output_file
+106788	deeprm	19932355	19932355	849606	849606	800403	372766	73332	354305	13953	8691	6492	-0.04648108153300855	0.08668687204854365	analysis/106788/delta_beta/deeprm.HEK_minus_HeLa.delta_beta.tsv
+106788	dorado	2025168	2025168	66962	66962	59829	36312	3178	20339	1178	765	580	0.012565181518857438	0.06271543562291913	analysis/106788/delta_beta/dorado.HEK_minus_HeLa.delta_beta.tsv
+106788	m6anet	170014	170014	125	125	125	91	26	8	125	125	89	0.029315383783615336	0.03685400838450621	analysis/106788/delta_beta/m6anet.HEK_minus_HeLa.delta_beta.tsv
+106788	singlemod	2074287	2074287	9128	9128	8458	5800	298	2360	270	180	123	0.007379074658567809	0.04137678539580456	analysis/106788/delta_beta/singlemod.HEK_minus_HeLa.delta_beta.tsv
